@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AA Bridge</string>
+    <string name="app_name" translatable="false">AA Bridge</string>
 
     <string name="car_waiting_title">Start Android Auto on your phone</string>
     <string name="car_waiting_body">Open Android Auto, tap ⋮, then Start head unit server.</string>
@@ -9,9 +9,9 @@
     <string name="car_not_responding_body">On your phone, open Android Auto, tap ⋮, Stop head unit server, then Start head unit server.</string>
     <string name="car_closed_title">Android Auto is closed</string>
     <string name="car_open_aa">Open Android Auto</string>
-    <string name="menu_start_server">Start head unit server</string>
-    <string name="menu_stop_server">Stop head unit server</string>
-    <string name="notif_channel">Android Auto</string>
+    <string name="menu_start_server" translatable="false">Start head unit server</string>
+    <string name="menu_stop_server" translatable="false">Stop head unit server</string>
+    <string name="notif_channel" translatable="false">Android Auto</string>
     <string name="notif_needs_tap_title">Android Auto needs a tap</string>
     <string name="notif_needs_tap_text">Your car is connected. Tap, then ⋮ → Start head unit server.</string>
     <string name="notif_not_responding_title">Android Auto isn\'t responding</string>
