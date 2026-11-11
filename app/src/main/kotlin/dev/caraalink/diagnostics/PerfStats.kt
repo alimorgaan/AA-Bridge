@@ -45,6 +45,8 @@ object PerfStats {
     private val aa = FrameRateCounter()
     @Volatile var mirrorFramesDropped = 0L
     @Volatile var aaReconnects = 0
+    /** AA frames thrown away because the decoder had no free input buffer. */
+    @Volatile var aaDecoderMisses = 0L
 
     fun recordMirrorFrame(size: Int) = mirror.record(size)
     fun recordAaFrame(size: Int) = aa.record(size)
@@ -55,6 +57,7 @@ object PerfStats {
         if (aa.fps > 0) parts += "AA ${aa.fps.toInt()}fps/${aa.kbps.toInt()}kbps"
         if (mirrorFramesDropped > 0) parts += "dropped $mirrorFramesDropped"
         if (aaReconnects > 0) parts += "AA reconnects $aaReconnects"
+        if (aaDecoderMisses > 0) parts += "AA decoder misses $aaDecoderMisses"
         return if (parts.isEmpty()) "No active stream" else parts.joinToString("  ")
     }
 

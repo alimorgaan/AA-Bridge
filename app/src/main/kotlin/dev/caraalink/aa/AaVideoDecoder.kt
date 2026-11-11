@@ -67,7 +67,10 @@ class AaVideoDecoder(private val width: Int, private val height: Int) {
         val c = codec ?: return
         dev.caraalink.diagnostics.PerfStats.recordAaFrame(nal.size)
         try {
-            val index = freeInputs.poll(10, TimeUnit.MILLISECONDS) ?: return
+            val index = freeInputs.poll(10, TimeUnit.MILLISECONDS) ?: run {
+                dev.caraalink.diagnostics.PerfStats.aaDecoderMisses++
+                return
+            }
             val buffer = c.getInputBuffer(index) ?: return
             buffer.clear()
             buffer.put(nal)

@@ -234,8 +234,19 @@ class CarSession(
     // instead of hammering it at the same fixed interval forever.
     private var watchdogRestartStreak = 0
     private var inactiveSince = 0L
+    private var statsAt = Triple(0L, 0L, 0L)
+
+    /** One line per watchdog tick so a drive log shows the rate at every stage. */
+    private fun logStats() {
+        val (req, sent, enc) = statsAt
+        logger.log("stats 5s: requests=${frameRequests - req} sent=${framesSent - sent} encoded=${framesEncoded - enc} " +
+            "queued=${pullQueue.size} pending=$pendingRequests | ${dev.caraalink.diagnostics.PerfStats.summary()}")
+        statsAt = Triple(frameRequests, framesSent, framesEncoded)
+    }
+
     private val aaWatchdogTick = object : Runnable {
         override fun run() {
+            logStats()
             val probe = dev.caraalink.aa.AaSessionProbe.active
             if (display.mode == CarDisplay.Mode.AA) {
                 if (probe == null) {
