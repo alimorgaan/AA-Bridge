@@ -18,7 +18,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
-import dev.caraalink.accessibility.HeadUnitServerLauncher
 
 /**
  * First-run (or revisit-anytime) flow: a one-time intro screen explaining
@@ -73,9 +72,8 @@ class OnboardingActivity : Activity() {
             setPadding(0, 0, 0, dp(24))
         })
         listOf(
-            "Mirror your phone's screen to the car, with touch" to "Nothing to set up -- tap the Phone screen tile once connected.",
             "Or run a real Android Auto session" to "Maps, media, voice -- same as a real head unit would show.",
-            "A couple of permissions needed first" to "Next: accessibility, battery, and notifications -- here's exactly why.",
+            "A couple of permissions needed first" to "Next: battery and notifications -- here's exactly why.",
         ).forEach { (title, detail) ->
             root.addView(TextView(this).apply {
                 text = "•  $title"
@@ -119,13 +117,6 @@ class OnboardingActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
             setPadding(0, 0, 0, dp(20))
         })
-
-        addItem(
-            title = "Accessibility service",
-            detail = "Required for one-click 'Start head unit server'",
-            done = isAccessibilityServiceEnabled(),
-            actionLabel = "Open settings",
-        ) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
 
         addItem(
             title = "Battery optimization",
@@ -196,9 +187,6 @@ class OnboardingActivity : Activity() {
 
     private fun dp(value: Int): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
-
-    private fun isAccessibilityServiceEnabled(): Boolean =
-        HeadUnitServerLauncher.isAccessibilityServiceEnabled(this)
 
     private fun isIgnoringBatteryOptimizations(): Boolean {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager

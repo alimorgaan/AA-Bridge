@@ -16,7 +16,6 @@ import com.google.android.material.button.MaterialButton
 import dev.caraalink.aa.AaTlsReceiver
 import dev.caraalink.aa.AaSessionProbe
 import dev.caraalink.aa.AaVersionProbe
-import dev.caraalink.accessibility.HeadUnitServerLauncher
 import dev.caraalink.connection.ConnectionStateHolder
 import dev.caraalink.diagnostics.ConnectionDiagnosticsActivity
 import dev.caraalink.onboarding.OnboardingActivity
@@ -193,7 +192,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, dp(24))
         })
 
-        primaryButton("Start head unit server") { HeadUnitServerLauncher.start(this) }.also { root.addView(it) }
+        primaryButton("Start head unit server") { dev.caraalink.aa.AndroidAutoServer.openSettings(this) }.also { root.addView(it) }
         spacer(root)
         outlineButton("Setup checklist") { open(OnboardingActivity::class.java) }.also { root.addView(it) }
         spacer(root)

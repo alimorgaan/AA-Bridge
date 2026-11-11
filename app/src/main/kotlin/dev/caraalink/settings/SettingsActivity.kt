@@ -2,7 +2,6 @@ package dev.caraalink.settings
 
 import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.Preference
@@ -54,12 +53,6 @@ class SettingsActivity : AppCompatActivity() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(dev.caraalink.R.xml.root_preferences, rootKey)
             updateDpiSummary()
-
-            findPreference<Preference>("accessibility_service_shortcut")?.setOnPreferenceClickListener {
-                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                startActivity(intent)
-                true
-            }
 
             findPreference<Preference>("developer_tools")?.setOnPreferenceClickListener {
                 startActivity(Intent(requireContext(), dev.caraalink.diagnostics.DeveloperToolsActivity::class.java))

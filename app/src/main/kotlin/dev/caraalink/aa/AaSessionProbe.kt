@@ -58,12 +58,7 @@ class AaSessionProbe(
         /** Overrides the version we advertise; null uses AaFraming.PROTOCOL_MAJOR/MINOR. */
         val versionMajor: Int? = null,
         val versionMinor: Int? = null,
-        // Confirmed from a real log: AA's head-unit-server can still be
-        // ECONNREFUSED almost 20s after the accessibility-driven toggle
-        // fires (it takes a while to actually bind), but 3 attempts * 2s
-        // gave up after ~6s -- well short of that, forcing the owner to
-        // keep manually re-tapping the AA tile until a later attempt
-        // happened to land after it was finally ready.
+        // The server can refuse connections for ~20s after Start, so retry well past that.
         val maxAttempts: Int = 8,
         val retryDelayMs: Long = 2_000,
         /** Maximum delay after repeated failures following an established session. */
@@ -86,9 +81,12 @@ class AaSessionProbe(
 
     private val logger = DiagnosticLogger(context, "aa-session")
     private val running = AtomicBoolean(false)
-    /** Return true to replace a failed first handshake with a controlled server recovery. */
+    /** Called each time the phone reaches service discovery, i.e. a session is up. */
     @Volatile
-    var onInitialConnectionFailure: ((Throwable) -> Boolean)? = null
+    var onEstablished: (() -> Unit)? = null
+    /** Called when the initial retries ran out without a session (not after stop()). */
+    @Volatile
+    var onGaveUp: (() -> Unit)? = null
     @Volatile
     private var socket: Socket? = null
     @Volatile
@@ -413,6 +411,7 @@ class AaSessionProbe(
                 }
             }
             logger.log("gave up after $attempt attempt(s)")
+            if (running.get()) runCatching { onGaveUp?.invoke() }
         } finally {
             running.set(false)
             runCatching { socket?.close() }
@@ -798,6 +797,7 @@ class AaSessionProbe(
                         decodeDiscoveryRequest(body)
                         logger.log("rung 3 reached -- phone asked for service discovery")
                         everEstablished = true
+                        runCatching { onEstablished?.invoke() }
                         val discoveryConfig = AaServiceDiscovery.configFromSettings(context, preview = config.preview)
                         phoneMediaAudio = discoveryConfig.phoneMediaAudio
                         val response = AaServiceDiscovery.build(discoveryConfig)
@@ -852,15 +852,6 @@ class AaSessionProbe(
         } catch (e: Exception) {
             logger.log("failed: ${e.javaClass.simpleName}: ${e.message}")
             Log.w(TAG, "session failed", e)
-            if (!everEstablished && running.get() && e is java.io.IOException) {
-                val recoveryStarted = runCatching { onInitialConnectionFailure?.invoke(e) == true }
-                    .onFailure { logger.log("initial-failure recovery callback failed: $it") }
-                    .getOrDefault(false)
-                if (recoveryStarted) {
-                    logger.log("initial AA handshake failed; controlled head-unit-server recovery requested")
-                    running.set(false)
-                }
-            }
             false
         } finally {
             isConnectionActive = false

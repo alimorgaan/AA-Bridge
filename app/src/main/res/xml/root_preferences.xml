@@ -94,11 +94,6 @@
 
     <PreferenceCategory android:title="Connection">
         <SwitchPreferenceCompat
-            android:key="auto_start_head_unit_server"
-            android:title="Auto-start head unit server"
-            android:summary="When tapping the Android Auto tile and it isn't running yet, automatically open AA's Settings and flip its developer toggle via the accessibility service. Turn off to just get a notification and start it yourself instead."
-            android:defaultValue="true" />
-        <SwitchPreferenceCompat
             android:key="auto_reconnect_usb"
             android:title="Auto-reconnect"
             android:summary="Reconnect automatically if the USB link drops"
@@ -146,10 +141,6 @@
             android:title="Auto-save crash log to Downloads"
             android:summary="On a crash, save the current log straight to Downloads automatically -- no need to dig through Developer tools afterward"
             android:defaultValue="true" />
-        <Preference
-            android:key="accessibility_service_shortcut"
-            android:title="Accessibility service"
-            android:summary="Required for one-click head-unit-server start — tap to open system settings" />
         <Preference
             android:key="developer_tools"
             android:title="Developer tools"

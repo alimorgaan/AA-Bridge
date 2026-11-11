@@ -4,6 +4,7 @@ import android.content.Context
 
 import android.hardware.usb.UsbAccessory
 import android.util.Log
+import dev.caraalink.aa.AndroidAutoServer
 import dev.caraalink.connection.ConnectionPhase
 import dev.caraalink.connection.ConnectionStateHolder
 
@@ -15,7 +16,6 @@ import dev.caraalink.video.CarVideoEncoder
 import dev.caraalink.video.VideoEncoder
 import org.json.JSONObject
 import java.util.ArrayDeque
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * One connection to the head unit: ADB transport, PXC control, mirror
@@ -90,6 +90,9 @@ class CarSession(
 
     private fun release() {
         aaWatchdog.removeCallbacks(aaWatchdogTick)
+        pollThread?.interrupt()
+        pollThread = null
+        AndroidAutoServer.cancelNeedsTap(context)
         dev.caraalink.aa.AaReconnectBus.onVideoSettingsChanged = null
         dev.caraalink.aa.AaSessionProbe.active?.stop()
         aaDecoder?.stop()
@@ -120,20 +123,9 @@ class CarSession(
      * carry audio to the car at all yet (not implemented anywhere, mirroring
      * included), so that's a separate, later piece of work.
      */
-    // Confirmed from a real logcat capture: openAndroidAuto()'s only guard
-    // was checking AaSessionProbe.active on the CALLING thread, but the
-    // probe itself isn't created until partway through the background
-    // Thread below -- a real gap where `active` is still null (old probe
-    // just stopped, new one not constructed yet) that TWO calls can both
-    // walk through at once (e.g. the watchdog's own restart racing a tap on
-    // the AA tile a moment later). Both then ran their own independent
-    // accessibility-toggle check concurrently -- one's "server not up, tap
-    // Start" stepped on the other's freshly-started session by tapping
-    // "Stop" on it instead (the overflow menu read stale "on" state),
-    // killing a session that had just barely connected (session failed:
-    // Connection reset, immediately after that tap, logged live).
+    // `active` is null between an old probe stopping and the new one starting on the thread
+    // below, so two calls could race through; this flag closes that gap.
     @Volatile private var openingAa = false
-    private val aaServerRecoveryRequested = AtomicBoolean(false)
 
     private fun openAndroidAuto() {
         if (dev.caraalink.aa.AaSessionProbe.active != null) {
@@ -150,72 +142,59 @@ class CarSession(
         display.showStatus(CarScreen.STARTING)
         logger.log("openAndroidAuto: checking 127.0.0.1:5277 before starting")
         Thread({
-            fun serverUp() = isListening(5277)
-            var up = serverUp()
-            if (!up) {
-                if (dev.caraalink.settings.AppSettings.autoStartHeadUnitServer(context)) {
-                    // Start is state-aware: it taps only when AA's menu says
-                    // the server is off. A failed TCP probe alone must never
-                    // trigger a Stop action on an enabled server.
-                    logger.log("openAndroidAuto: server not accepting TCP -- requesting safe start")
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        display.showStatus(CarScreen.WAITING)
-                        dev.caraalink.accessibility.HeadUnitServerLauncher.start(context)
-                    }
-                    Thread.sleep(2500)
-                    up = serverUp()
-                    if (!up) logger.log("openAndroidAuto: server did not accept TCP after start request; continuing without another toggle")
-                } else {
-                    // "Auto-start head unit server" is off (Settings > Connection) --
-                    // the owner wants to flip AA's developer-mode switch themselves,
-                    // not have this app drive the accessibility service for them.
-                    // Just tell them, same notification the "service not enabled"
-                    // path already uses, no accessibility automation triggered.
-                    logger.log("openAndroidAuto: server not listening, auto-start disabled -- notifying only")
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        display.showStatus(CarScreen.WAITING)
-                        dev.caraalink.accessibility.HeadUnitServerLauncher.notifyOpenAndroidAutoManually(context)
-                    }
+            if (!AndroidAutoServer.isRunning()) {
+                logger.log("openAndroidAuto: server not listening -- waiting for the driver to start it")
+                openingAa = false
+                main.post {
+                    display.showStatus(CarScreen.WAITING)
+                    AndroidAutoServer.notifyNeedsTap(context)
+                    startServerPoll(SERVER_POLL_MS)
                 }
+                return@Thread
             }
-            // Confirmed from a real logcat capture: exiting AA closes our
-            // socket, which kicks off gearhead's OWN teardown of the whole
-            // car-projection session (releases automotive projection, tears
-            // down its displays, disconnects its car-client connector --
-            // that disconnect logged TWICE, ~2.1s apart). The dev-mode
-            // socket (127.0.0.1:5277) stays listening the whole time since
-            // only the specific session tore down, not the server itself --
-            // so reopening right after exit used to skip straight to a new
-            // AaSessionProbe with no delay at all, landing while gearhead's
-            // teardown was still mid-flight (its window manager was still
-            // "tearing down a window that's still in use" a second after
-            // our new probe had already started). Give it the same grace
-            // window the accessibility-retry path already gets.
-            if (up) Thread.sleep(2000)
+            // Gearhead tears down the previous session for ~2s after an exit; don't race it.
+            Thread.sleep(2000)
             logger.log("openAndroidAuto: starting AA session probe")
             val probe = dev.caraalink.aa.AaSessionProbe(context)
-            probe.onInitialConnectionFailure = { error ->
-                val canRecover = dev.caraalink.settings.AppSettings.autoStartHeadUnitServer(context) &&
-                    dev.caraalink.accessibility.HeadUnitServerLauncher.isAccessibilityServiceEnabled(context)
-                if (canRecover && aaServerRecoveryRequested.compareAndSet(false, true)) {
-                    logger.log("AA startup handshake failed (${error.javaClass.simpleName}) -- requesting one state-aware server recovery")
-                    val main = android.os.Handler(android.os.Looper.getMainLooper())
-                    main.post { dev.caraalink.accessibility.HeadUnitServerLauncher.recover(context) }
-                    // Give accessibility automation time to read the menu,
-                    // perform at most one Stop/Start cycle, and let Gearhead
-                    // reopen its listener before the next protocol attempt.
-                    main.postDelayed({
-                        if (display.mode == CarDisplay.Mode.AA && dev.caraalink.aa.AaSessionProbe.active == null) {
-                            openAndroidAuto()
-                        }
-                    }, AA_SERVER_RECOVERY_RETRY_MS)
-                    true
-                } else false
-            }
+            probe.onEstablished = { AndroidAutoServer.cancelNeedsTap(context) }
+            probe.onGaveUp = { main.post { onAaNotResponding() } }
             probe.start()
             openingAa = false
-            android.os.Handler(android.os.Looper.getMainLooper()).post { showAaSurface() }
+            main.post { showAaSurface() }
         }, "AA-server-check").start()
+    }
+
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    @Volatile private var pollThread: Thread? = null
+
+    /** Server listening but every handshake failed: tell the driver, keep retrying. */
+    private fun onAaNotResponding() {
+        logger.log("AA handshake retries used up -- server not responding")
+        display.showStatus(CarScreen.NOT_RESPONDING)
+        AndroidAutoServer.notifyNeedsTap(context, notResponding = true)
+        startServerPoll(NOT_RESPONDING_RETRY_MS)
+    }
+
+    /** While the car waits on the server, check it off the main thread and reopen Android Auto once it's up. */
+    private fun startServerPoll(intervalMs: Long) {
+        if (pollThread?.isAlive == true) return
+        pollThread = Thread({
+            try {
+                while (true) {
+                    Thread.sleep(intervalMs)
+                    val screen = display.screen
+                    val waiting = screen == CarScreen.WAITING || screen == CarScreen.NOT_RESPONDING
+                    if (display.mode != CarDisplay.Mode.STATUS || !waiting) return@Thread
+                    if (AndroidAutoServer.shouldAutoOpen(screen, AndroidAutoServer.isRunning())) {
+                        main.post {
+                            if (display.mode == CarDisplay.Mode.STATUS && AndroidAutoServer.shouldAutoOpen(display.screen, true)) openAndroidAuto()
+                        }
+                        return@Thread
+                    }
+                }
+            } catch (_: InterruptedException) {
+            }
+        }, "AA-server-poll").also { it.isDaemon = true; it.start() }
     }
 
     /**
@@ -301,17 +280,7 @@ class CarSession(
         dev.caraalink.aa.AaReconnectBus.onVideoSettingsChanged = {
             logger.log("AA video settings changed -- reconnecting session")
             dev.caraalink.aa.AaSessionProbe.active?.stop()
-            // Confirmed from a real log: reconnecting immediately after
-            // stop() got a healthy TCP connect but then silence -- no
-            // VERSION_RESPONSE ever, watchdog restarting every 10s with the
-            // same result, needing a full app/server restart to recover.
-            // This is a *warm* restart (gearhead had a live session we just
-            // yanked away), not the cold-start "service not up yet" case --
-            // it likely needs a moment to actually tear down the old
-            // session before it's ready to service a new one. A brief
-            // grace period before reconnecting, same idea as the existing
-            // accessibility-auto-start delay, gives it that room instead of
-            // racing it.
+            // A warm restart needs a moment for gearhead to tear down the old session.
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ openAndroidAuto() }, 1500)
         }
         val config = dev.caraalink.aa.AaServiceDiscovery.configFromSettings(context)
@@ -593,7 +562,8 @@ class CarSession(
         private const val AA_WATCHDOG_STARTUP_MS = 60_000L
         private const val AA_WATCHDOG_STALL_MAX_MS = 60_000L
         private const val AA_TEARDOWN_RESTART_DELAY_MS = 1_500L
-        private const val AA_SERVER_RECOVERY_RETRY_MS = 7_000L
+        private const val SERVER_POLL_MS = 2_000L
+        private const val NOT_RESPONDING_RETRY_MS = 5_000L
 
         // AA's head unit server never answers again after a connection we close, so probe by bind, not connect.
         internal fun isListening(port: Int): Boolean = runCatching {
