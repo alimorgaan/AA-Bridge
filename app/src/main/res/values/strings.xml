@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">CarAALink</string>
-    <string name="accessibility_service_description">Lets CarAALink one-click start Android Auto\'s \"head unit server\" developer mode instead of you doing it by hand (Settings → tap Version 10x → ⋮ → Start head unit server).</string>
+    <string name="app_name">AA Bridge</string>
+    <string name="accessibility_service_description">Lets AA Bridge one-click start Android Auto\'s \"head unit server\" developer mode instead of you doing it by hand (Settings → tap Version 10x → ⋮ → Start head unit server).</string>
 </resources>

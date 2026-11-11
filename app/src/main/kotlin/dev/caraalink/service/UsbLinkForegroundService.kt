@@ -408,7 +408,7 @@ class UsbLinkForegroundService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("CarAALink")
+            .setContentTitle("AA Bridge")
             .setContentText(statusText)
             .setOngoing(true)
             .setContentIntent(openAppIntent)

@@ -59,7 +59,7 @@ class OnboardingActivity : Activity() {
     private fun renderIntro() {
         root.removeAllViews()
         root.addView(TextView(this).apply {
-            text = "CarAALink"
+            text = "AA Bridge"
             setTextColor(Color.parseColor("#36C9C6"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
             setPadding(0, dp(8), 0, dp(16))

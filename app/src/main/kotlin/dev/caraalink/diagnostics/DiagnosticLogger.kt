@@ -66,7 +66,7 @@ class DiagnosticLogger(private val context: Context, private val tag: String) {
      * tap. Returns the saved file's display name, or null on failure.
      */
     fun saveToDownloads(file: File): String? {
-        val name = "CarAALink-${file.name}"
+        val name = "AABridge-${file.name}"
         val resolver = context.contentResolver
         val values = android.content.ContentValues().apply {
             put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)

@@ -50,7 +50,7 @@ class DeveloperToolsActivity : Activity() {
         root.addView(button("Save log to Downloads") { saveLogToDownloads() })
         root.addView(button("Clear logs") { clearLogs() })
 
-        root.addView(section("Car Preview: shows CarAALink's own car home screen on this phone, " +
+        root.addView(section("Car Preview: shows AA Bridge's own car home screen on this phone, " +
             "same as the car sees it -- tap its Android Auto tile to start (or attach to) a " +
             "real AA session with decoded video and touch, for testing without the car."))
 
@@ -108,7 +108,7 @@ class DeveloperToolsActivity : Activity() {
         startActivity(
             Intent.createChooser(
                 logger.shareFileIntent(file),
-                "Share CarAALink logs",
+                "Share AA Bridge logs",
             )
         )
     }

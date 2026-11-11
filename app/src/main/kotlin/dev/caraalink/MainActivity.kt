@@ -181,7 +181,7 @@ class MainActivity : Activity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "CarAALink"
+            text = "AA Bridge"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 28f)
             setTextColor(Color.parseColor("#F2F5F7"))
         })

@@ -13,7 +13,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "dev.caraalink"
+        applicationId = "io.github.alimorgaan.aabridge"
         minSdk = 29
         targetSdk = 34
         versionCode = 2

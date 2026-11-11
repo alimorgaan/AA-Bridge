@@ -117,7 +117,7 @@ object AaServiceDiscovery {
          */
         val widthMargin: Int = 0,
         val heightMargin: Int = 0,
-        val displayName: String = "CarAALink",
+        val displayName: String = "AA Bridge",
         val driverPosition: Int = DRIVER_POSITION_LEFT,
         /** Declare only the required system sink, so AA plays media and guidance on the phone itself. */
         val phoneMediaAudio: Boolean = false,
@@ -402,12 +402,12 @@ object AaServiceDiscovery {
             .build()
 
         val headUnitInfo = AaProtobuf.Writer()
-            .string(1, "CarAALink")   // make
+            .string(1, "AA Bridge")   // make
             .string(2, "Universal")   // model
             .string(3, "2026")        // year
             .string(4, "caraalink")   // vehicle_id
-            .string(5, "CarAALink")   // head_unit_make
-            .string(6, "CarAALink")   // head_unit_model
+            .string(5, "AA Bridge")   // head_unit_make
+            .string(6, "AA Bridge")   // head_unit_model
             .string(7, "1")           // head_unit_software_build
             .string(8, "0.1.0")       // head_unit_software_version
             .build()

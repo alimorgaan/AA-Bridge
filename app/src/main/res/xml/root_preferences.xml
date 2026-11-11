@@ -69,7 +69,7 @@
         <SwitchPreferenceCompat
             android:key="aa_auto_launch"
             android:title="Jump straight to Android Auto"
-            android:summary="Skip the CarAALink home screen and start the AA session as soon as the head unit server is up"
+            android:summary="Skip the AA Bridge home screen and start the AA session as soon as the head unit server is up"
             android:defaultValue="false" />
         <SwitchPreferenceCompat
             android:key="video_downscale_720p"
