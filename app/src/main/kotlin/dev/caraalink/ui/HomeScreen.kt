@@ -1,7 +1,10 @@
 package dev.caraalink.ui
 
+import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +24,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -52,8 +58,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import dev.caraalink.R
 import dev.caraalink.aa.AndroidAutoServer
+import dev.caraalink.connection.CarLink
 import dev.caraalink.connection.ConnectionSnapshot
 import dev.caraalink.connection.ConnectionStateHolder
+import dev.caraalink.connection.WirelessPhase
+import dev.caraalink.service.UsbLinkForegroundService
+import dev.caraalink.settings.AppSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -107,13 +117,26 @@ fun BrandBar(modifier: Modifier = Modifier) {
     }
 }
 
+/** Starts the wireless search: the remembered car, or [address] when the driver picked one. */
+fun startWireless(context: Context, address: String? = null, name: String? = null) {
+    val intent = Intent(context, UsbLinkForegroundService::class.java).setAction(UsbLinkForegroundService.ACTION_START_WIRELESS)
+    if (address != null) intent.putExtra(UsbLinkForegroundService.EXTRA_CAR_ADDRESS, address).putExtra(UsbLinkForegroundService.EXTRA_CAR_NAME, name)
+    context.startForegroundService(intent)
+}
+
+private fun stopLink(context: Context) {
+    context.startService(Intent(context, UsbLinkForegroundService::class.java).setAction(UsbLinkForegroundService.ACTION_STOP))
+}
+
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit, onOpenNearby: () -> Unit) {
     val context = LocalContext.current
     val serverRunning = rememberServerRunning()
     val connection = rememberConnection()
     val carConnected = connection.phase.isCarConnected()
-    val state = homeState(serverRunning, carConnected)
+    val state = homeState(serverRunning, carConnected, connection.wireless)
+    val rememberedName = AppSettings.wirelessCar(context)?.name ?: ""
+    val carName = connection.carName ?: rememberedName.ifEmpty { stringResource(R.string.state_connected) }
     val dark = isSystemInDarkTheme()
     val colors = MaterialTheme.colorScheme
     val amber = if (dark) Color(0xFF451A03) to Color(0xFFFCD34D) else Color(0xFFFEF3C7) to Color(0xFFB45309)
@@ -126,29 +149,45 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(32.dp))
-                val (icon, tint) = when (state) {
-                    HomeState.READY -> rememberVectorPainter(Icons.Rounded.Check) to (colors.primaryContainer to colors.onPrimaryContainer)
-                    HomeState.NEEDS_TAP -> painterResource(R.drawable.ic_touch_app) to amber
-                    HomeState.CONNECTED -> painterResource(R.drawable.ic_car) to (colors.primaryContainer to colors.onPrimaryContainer)
+                val primary = colors.primaryContainer to colors.onPrimaryContainer
+                if (state == HomeState.SEARCHING || state == HomeState.CONNECTING) {
+                    BusyIcon(primary.first, primary.second)
+                } else {
+                    val (icon, tint) = when (state) {
+                        HomeState.NEEDS_TAP -> painterResource(R.drawable.ic_touch_app) to amber
+                        HomeState.CONNECTED -> painterResource(R.drawable.ic_car) to primary
+                        HomeState.NOT_FOUND, HomeState.WIFI_OFF -> rememberVectorPainter(Icons.Rounded.Warning) to amber
+                        else -> rememberVectorPainter(Icons.Rounded.Check) to primary
+                    }
+                    StatusIcon(icon, tint.first, tint.second)
                 }
-                StatusIcon(icon, tint.first, tint.second)
                 Spacer(Modifier.height(24.dp))
-                val (title, body) = when (state) {
-                    HomeState.READY -> R.string.home_ready_title to R.string.home_ready_body
-                    HomeState.NEEDS_TAP -> R.string.home_needs_tap_title to R.string.home_needs_tap_body
-                    HomeState.CONNECTED -> R.string.home_connected_title to R.string.home_connected_body
+                val title = when (state) {
+                    HomeState.READY -> stringResource(R.string.home_ready_title)
+                    HomeState.NEEDS_TAP -> stringResource(R.string.home_needs_tap_title)
+                    HomeState.CONNECTED -> stringResource(R.string.home_connected_title)
+                    HomeState.SEARCHING -> stringResource(R.string.home_searching_title, rememberedName)
+                    HomeState.CONNECTING -> stringResource(R.string.home_connecting_title)
+                    HomeState.NOT_FOUND -> if (connection.wireless == WirelessPhase.FAILED) {
+                        stringResource(R.string.home_failed_title, rememberedName)
+                    } else {
+                        stringResource(R.string.home_not_found_title)
+                    }
+                    HomeState.WIFI_OFF -> stringResource(R.string.home_wifi_off_title)
                 }
-                Text(stringResource(title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                val body = when (state) {
+                    HomeState.READY -> R.string.home_ready_body
+                    HomeState.NEEDS_TAP -> R.string.home_needs_tap_body
+                    HomeState.CONNECTED -> R.string.home_connected_body
+                    HomeState.SEARCHING -> R.string.home_searching_body
+                    HomeState.CONNECTING -> R.string.home_connecting_body
+                    HomeState.NOT_FOUND -> R.string.home_not_found_body
+                    HomeState.WIFI_OFF -> R.string.home_wifi_off_body
+                }
+                Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(body), style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
-                if (state == HomeState.NEEDS_TAP) {
-                    Spacer(Modifier.height(24.dp))
-                    Button(onClick = { AndroidAutoServer.openSettings(context) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                        Text(stringResource(R.string.open_aa), style = MaterialTheme.typography.titleSmall)
-                    }
-                    Spacer(Modifier.height(20.dp))
-                    MenuHint(stringResource(R.string.menu_start_server))
-                }
+                HomeActions(state, connection, onOpenNearby)
                 Spacer(Modifier.height(32.dp))
                 Card(Modifier.fillMaxWidth()) {
                     StatusRow(
@@ -159,7 +198,12 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit) {
                     HorizontalDivider(color = colors.surface)
                     StatusRow(
                         stringResource(R.string.row_car),
-                        if (carConnected) connection.carName ?: stringResource(R.string.state_connected) else stringResource(R.string.state_not_connected),
+                        when {
+                            !carConnected -> stringResource(R.string.state_not_connected)
+                            connection.link == CarLink.WIRELESS -> stringResource(R.string.link_wireless, carName)
+                            connection.link == CarLink.CABLE -> stringResource(R.string.link_cable, carName)
+                            else -> carName
+                        },
                         good = carConnected,
                     )
                 }
@@ -171,6 +215,69 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit) {
                 TextButton(onClick = onOpenHelp) { Text(stringResource(R.string.help)) }
             }
         }
+    }
+}
+
+/** The buttons under the status text; each state offers its own next step. */
+@Composable
+private fun HomeActions(state: HomeState, connection: ConnectionSnapshot, onOpenNearby: () -> Unit) {
+    val context = LocalContext.current
+    val wide = Modifier.fillMaxWidth().height(52.dp)
+    when (state) {
+        HomeState.NEEDS_TAP -> {
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = { AndroidAutoServer.openSettings(context) }, modifier = wide) {
+                Text(stringResource(R.string.open_aa), style = MaterialTheme.typography.titleSmall)
+            }
+            Spacer(Modifier.height(20.dp))
+            MenuHint(stringResource(R.string.menu_start_server))
+        }
+        HomeState.READY -> {
+            Spacer(Modifier.height(24.dp))
+            OutlinedButton(onClick = onOpenNearby, modifier = wide) {
+                Text(stringResource(R.string.home_connect_wireless), style = MaterialTheme.typography.titleSmall)
+            }
+        }
+        HomeState.SEARCHING -> {
+            Spacer(Modifier.height(16.dp))
+            TextButton(onClick = onOpenNearby) { Text(stringResource(R.string.home_use_another_car)) }
+        }
+        HomeState.NOT_FOUND -> {
+            connection.suggestion?.let { found ->
+                Spacer(Modifier.height(16.dp))
+                Card(onClick = { startWireless(context, found.address, found.name) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_car), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.home_found_nearby, found.name), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = { startWireless(context) }, modifier = wide) {
+                Text(stringResource(R.string.home_try_again), style = MaterialTheme.typography.titleSmall)
+            }
+            TextButton(onClick = onOpenNearby) { Text(stringResource(R.string.home_choose_car)) }
+        }
+        HomeState.WIFI_OFF -> {
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = { context.startActivity(Intent(Settings.Panel.ACTION_WIFI)) }, modifier = wide) {
+                Text(stringResource(R.string.home_wifi_settings), style = MaterialTheme.typography.titleSmall)
+            }
+            TextButton(onClick = { startWireless(context) }) { Text(stringResource(R.string.home_try_again)) }
+        }
+        HomeState.CONNECTED -> if (connection.link == CarLink.WIRELESS) {
+            Spacer(Modifier.height(16.dp))
+            TextButton(onClick = { stopLink(context) }) { Text(stringResource(R.string.home_disconnect)) }
+        }
+        HomeState.CONNECTING -> {}
+    }
+}
+
+@Composable
+private fun BusyIcon(background: Color, tint: Color) {
+    Box(Modifier.size(112.dp).background(background, CircleShape), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = tint, modifier = Modifier.size(56.dp))
     }
 }
 

@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
                     Screen.HOME -> HomeScreen(
                         onOpenSettings = { screen = Screen.SETTINGS },
                         onOpenHelp = { fromSettings = false; screen = Screen.HELP },
+                        onOpenNearby = {},
                     )
                     Screen.SETTINGS -> SettingsScreen(
                         onBack = back,
@@ -158,6 +159,14 @@ class MainActivity : ComponentActivity() {
 
     // When the app is already running, picking it in the USB chooser delivers
     // the attach intent here instead of onCreate.
+    override fun onStart() {
+        super.onStart()
+        // Opening the app connects to the remembered car; the cable and a running attempt both win.
+        if (dev.caraalink.ui.shouldAutoConnect(dev.caraalink.connection.ConnectionStateHolder.snapshot, AppSettings.wirelessCar(this) != null)) {
+            dev.caraalink.ui.startWireless(this)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
