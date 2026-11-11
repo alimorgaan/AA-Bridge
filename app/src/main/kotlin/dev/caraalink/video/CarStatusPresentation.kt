@@ -41,7 +41,9 @@ class CarStatusPresentation(
             CarScreen.NOT_RESPONDING -> R.string.car_not_responding_title
             CarScreen.CLOSED -> R.string.car_closed_title
         }
-        column.addView(text(title, 30f, Color.WHITE, bold = true))
+        // Amber when the driver has to act, as on the phone.
+        val needsDriver = screen == CarScreen.WAITING || screen == CarScreen.NOT_RESPONDING
+        column.addView(text(title, 30f, if (needsDriver) AMBER else TEXT, bold = true))
         when (screen) {
             CarScreen.WAITING -> {
                 column.addView(text(R.string.car_waiting_body, 18f, MUTED))
@@ -119,11 +121,14 @@ class CarStatusPresentation(
     ).toInt()
 
     private companion object {
-        val BACKGROUND = Color.parseColor("#0E1116")
-        val SURFACE = Color.parseColor("#1B2129")
-        val HIGHLIGHT = Color.parseColor("#134E4A")
+        // The phone's O21 dashboard palette (ui/theme/Theme.kt Dash).
+        val BACKGROUND = Color.parseColor("#0A0E12")
+        val SURFACE = Color.parseColor("#121A20")
+        val HIGHLIGHT = Color.parseColor("#0F2A2E")
         val ACCENT = Color.parseColor("#5EEAD4")
-        val BRAND = Color.parseColor("#0F766E")
-        val MUTED = Color.parseColor("#9AA7B2")
+        val BRAND = Color.parseColor("#0D9488")
+        val MUTED = Color.parseColor("#8AA3A8")
+        val TEXT = Color.parseColor("#E8F1F2")
+        val AMBER = Color.parseColor("#FBBF24")
     }
 }
