@@ -22,6 +22,7 @@ data class ConnectionSnapshot(
     val bytesWritten: Long = 0,
     val lastError: String? = null,
     val reconnectAttempts: Int = 0,
+    val carName: String? = null,
 )
 
 /**

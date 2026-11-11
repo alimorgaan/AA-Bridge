@@ -107,6 +107,7 @@ class CarSession(
     private fun onClientInfo(info: JSONObject) {
         logger.log("Head unit: ${info.optString("HUName")} screenType=${info.optInt("screenType")} " +
             "mirror=${info.optBoolean("supportScreenMirroring")} touch=${info.optBoolean("supportScreenTouch")}")
+        ConnectionStateHolder.update { it.copy(carName = info.optString("carBrand").ifBlank { null }) }
     }
 
     // --- car home screen actions ---
