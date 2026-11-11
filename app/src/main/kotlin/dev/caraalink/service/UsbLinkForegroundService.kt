@@ -224,20 +224,33 @@ class UsbLinkForegroundService : Service() {
             handler.post {
                 Log.i(TAG, "session ended: $reason")
                 session = null
-                endCableSession(retryable = isTransportIoFailure(reason))
+                if (!stopping && isTransportIoFailure(reason) && pendingAccessory != null) {
+                    scheduleTransportReconnect()
+                } else {
+                    stopSelfCleanly()
+                }
             }
         }
         session = s
-        if (s.start()) return
-        session = null
-        ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.ERROR, lastError = "accessory not openable") }
-        // Right after a replug the accessory can take a moment to open, so this is a retryable link failure too.
-        endCableSession(retryable = true)
-    }
-
-    /** A cable session that failed on the link gets the reconnect budget; anything else stops the service. */
-    private fun endCableSession(retryable: Boolean) {
-        if (retryable && !stopping && pendingAccessory != null) scheduleTransportReconnect() else stopSelfCleanly()
+        if (!s.start()) {
+            session = null
+            ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.ERROR, lastError = "openAccessory() returned null") }
+            // openAccessory() can fail this way for a beat right after a
+            // physical USB-C reconnect (uevent port0-partner "add" lands a
+            // few hundred ms before the accessory is actually openable) --
+            // confirmed live: a reconnect attempt landed here mid-retry
+            // sequence and this unconditionally called stopSelfCleanly(),
+            // throwing away the remaining retry budget even though the
+            // accessory physically came back ~4s later. Route through the
+            // same retry path as a transport read/write failure instead of
+            // giving up on the first miss.
+            if (!stopping && pendingAccessory != null) {
+                scheduleTransportReconnect()
+            } else {
+                stopSelfCleanly()
+            }
+            return
+        }
     }
 
     override fun onDestroy() {
