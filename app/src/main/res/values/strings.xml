@@ -17,11 +17,10 @@
     <string name="notif_not_responding_title">Android Auto isn\'t responding</string>
     <string name="notif_not_responding_text">Tap, then ⋮ → Stop head unit server, then Start head unit server.</string>
     <string name="notif_open_aa">Open Android Auto</string>
-    <string name="home_ready_title">Ready</string>
-    <string name="home_ready_body">Plug your phone into the car, or connect without a cable.</string>
+    <string name="home_ready_title">Ready to drive</string>
+    <string name="home_ready_body">Plug into the car, or go wireless.</string>
     <string name="home_connect_wireless">Connect without a cable</string>
-    <string name="home_searching_title">Looking for %1$s…</string>
-    <string name="home_searching_body">Keep the car screen on. This takes a few seconds.</string>
+    <string name="home_searching_body">Looking for your car… Keep the car screen on.</string>
     <string name="home_use_another_car">Use another car</string>
     <string name="home_connecting_title">Connecting…</string>
     <string name="home_connecting_body">Android Auto will appear on your car screen.</string>
@@ -35,10 +34,8 @@
     <string name="home_wifi_off_body">AA Bridge needs Wi-Fi on to reach your car. You don\'t have to join a network.</string>
     <string name="home_wifi_settings">Wi-Fi settings</string>
     <string name="home_disconnect">Disconnect</string>
-    <string name="link_wireless">%1$s · Wireless</string>
-    <string name="link_cable">%1$s · Cable</string>
-    <string name="home_needs_tap_title">Android Auto needs a tap</string>
-    <string name="home_needs_tap_body">Open Android Auto, then tap ⋮ and Start head unit server.</string>
+    <string name="home_needs_tap_title">Start Android Auto</string>
+    <string name="home_needs_tap_body">Its server is off. One tap fixes it.</string>
     <string name="home_connected_title">Connected</string>
     <string name="home_connected_body">Android Auto is on your car screen.</string>
     <string name="row_server">Android Auto server</string>
@@ -92,4 +89,18 @@
     <string name="fgs_connected_wireless">Connected wirelessly to %1$s</string>
     <string name="fgs_reconnecting_wireless">Reconnecting to %1$s…</string>
     <string name="wireless_open_to_reconnect">Open AA Bridge to reconnect to %1$s</string>
+    <string name="ring_ready">Ready</string>
+    <string name="ring_searching">Searching</string>
+    <string name="ring_connecting">Connecting</string>
+    <string name="ring_connected">Connected</string>
+    <string name="ring_needs_tap">Needs a tap</string>
+    <string name="ring_not_found">Not found</string>
+    <string name="ring_wifi_off">Wi-Fi off</string>
+    <string name="tile_server">Server</string>
+    <string name="tile_car">Car</string>
+    <string name="tile_link">Link</string>
+    <string name="link_wireless_short">Wireless</string>
+    <string name="link_cable_short">Cable</string>
+    <string name="state_searching">Searching…</string>
+    <string name="state_connecting">Connecting…</string>
 </resources>

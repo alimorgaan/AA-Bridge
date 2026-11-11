@@ -12,11 +12,10 @@
     <string name="notif_not_responding_title">Android Auto لا يستجيب</string>
     <string name="notif_not_responding_text">اضغط هنا، ثم ⋮ ← Stop head unit server، ثم Start head unit server.</string>
     <string name="notif_open_aa">افتح Android Auto</string>
-    <string name="home_ready_title">جاهز</string>
-    <string name="home_ready_body">وصّل هاتفك بالسيارة، أو اتصل بدون كابل.</string>
+    <string name="home_ready_title">جاهز للقيادة</string>
+    <string name="home_ready_body">وصّل الكابل بالسيارة، أو اتصل لاسلكيًا.</string>
     <string name="home_connect_wireless">الاتصال بدون كابل</string>
-    <string name="home_searching_title">جارٍ البحث عن %1$s…</string>
-    <string name="home_searching_body">اترك شاشة السيارة تعمل. يستغرق ذلك بضع ثوانٍ.</string>
+    <string name="home_searching_body">جارٍ البحث عن سيارتك… اترك شاشة السيارة تعمل.</string>
     <string name="home_use_another_car">استخدام سيارة أخرى</string>
     <string name="home_connecting_title">جارٍ الاتصال…</string>
     <string name="home_connecting_body">سيظهر Android Auto على شاشة سيارتك.</string>
@@ -30,10 +29,8 @@
     <string name="home_wifi_off_body">يحتاج AA Bridge إلى تشغيل الواي فاي للوصول إلى سيارتك. لا داعي للاتصال بأي شبكة.</string>
     <string name="home_wifi_settings">إعدادات الواي فاي</string>
     <string name="home_disconnect">قطع الاتصال</string>
-    <string name="link_wireless">%1$s · لاسلكي</string>
-    <string name="link_cable">%1$s · كابل</string>
-    <string name="home_needs_tap_title">Android Auto يحتاج لضغطة منك</string>
-    <string name="home_needs_tap_body">افتح Android Auto، ثم اضغط ⋮ واختر Start head unit server.</string>
+    <string name="home_needs_tap_title">شغّل Android Auto</string>
+    <string name="home_needs_tap_body">خادمه متوقف. ضغطة واحدة تكفي.</string>
     <string name="home_connected_title">متصل</string>
     <string name="home_connected_body">Android Auto يعمل الآن على شاشة سيارتك.</string>
     <string name="row_server">خادم Android Auto</string>
@@ -87,4 +84,18 @@
     <string name="fgs_connected_wireless">متصل لاسلكيًا بـ %1$s</string>
     <string name="fgs_reconnecting_wireless">جارٍ إعادة الاتصال بـ %1$s…</string>
     <string name="wireless_open_to_reconnect">افتح AA Bridge لإعادة الاتصال بـ %1$s</string>
+    <string name="ring_ready">جاهز</string>
+    <string name="ring_searching">جارٍ البحث</string>
+    <string name="ring_connecting">جارٍ الاتصال</string>
+    <string name="ring_connected">متصل</string>
+    <string name="ring_needs_tap">يحتاج ضغطة</string>
+    <string name="ring_not_found">لم نجدها</string>
+    <string name="ring_wifi_off">الواي فاي متوقف</string>
+    <string name="tile_server">الخادم</string>
+    <string name="tile_car">السيارة</string>
+    <string name="tile_link">الاتصال</string>
+    <string name="link_wireless_short">لاسلكي</string>
+    <string name="link_cable_short">كابل</string>
+    <string name="state_searching">جارٍ البحث…</string>
+    <string name="state_connecting">جارٍ الاتصال…</string>
 </resources>

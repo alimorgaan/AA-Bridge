@@ -38,7 +38,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The app is always dark, so the system bar icons stay light even in the phone's light mode.
+        enableEdgeToEdge(
+            androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         Log.i(TAG, "onCreate: launch intent action=${intent?.action} extras=${intent?.extras}")
         dev.caraalink.diagnostics.CrashMarker.consumeLastCrash(this)?.let { summary ->
             Toast.makeText(this, "Restarted after a crash: $summary", Toast.LENGTH_LONG).show()
@@ -66,7 +70,6 @@ class MainActivity : ComponentActivity() {
                     Screen.SETUP -> SetupScreen(onDone = { screen = Screen.HOME }, onOpenNearby = { openNearby(Screen.SETUP) })
                     Screen.HOME -> HomeScreen(
                         onOpenSettings = { screen = Screen.SETTINGS },
-                        onOpenHelp = { fromSettings = false; screen = Screen.HELP },
                         onOpenNearby = { openNearby(Screen.HOME) },
                     )
                     Screen.SETTINGS -> SettingsScreen(
