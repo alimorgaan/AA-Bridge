@@ -24,6 +24,7 @@ import dev.caraalink.MainActivity
 import dev.caraalink.connection.ConnectionPhase
 import dev.caraalink.connection.ConnectionSnapshot
 import dev.caraalink.connection.ConnectionStateHolder
+import dev.caraalink.R
 import dev.caraalink.settings.AppSettings
 import dev.caraalink.diagnostics.AdbHandshakeProbe
 import dev.caraalink.diagnostics.UsbSnifferDiagnostic
@@ -331,7 +332,7 @@ class UsbLinkForegroundService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val channel = NotificationChannel(CHANNEL_ID, "USB link", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(CHANNEL_ID, getString(R.string.fgs_channel), NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
@@ -353,22 +354,21 @@ class UsbLinkForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
 
+        // Drivers see this on every drive, so plain words; the raw error stays in the logs.
         val statusText = when (snapshot.phase) {
-            ConnectionPhase.DISCONNECTED -> "Disconnected"
-            ConnectionPhase.ATTACHED -> "USB attached"
+            ConnectionPhase.STREAMING -> getString(R.string.fgs_connected)
+            ConnectionPhase.ERROR -> getString(R.string.fgs_problem)
             ConnectionPhase.SNIFFING -> "Diagnostic sniffer running (${snapshot.bytesRead} bytes)"
-            ConnectionPhase.STREAMING -> "Streaming"
-            ConnectionPhase.RECONNECTING -> "Reconnecting (attempt ${snapshot.reconnectAttempts})…"
-            ConnectionPhase.ERROR -> "Error: ${snapshot.lastError ?: "unknown"}"
+            else -> getString(R.string.fgs_connecting)
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("AA Bridge")
+            .setSmallIcon(R.drawable.ic_stat_bridge)
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(statusText)
             .setOngoing(true)
             .setContentIntent(openAppIntent)
-            .addAction(0, "Stop", stopIntent)
+            .addAction(0, getString(R.string.fgs_stop), stopIntent)
             .build()
     }
 

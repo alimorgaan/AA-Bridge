@@ -58,6 +58,7 @@ object AndroidAutoServer {
             .setContentText(context.getString(text))
             .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(text)))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .apply {
                 if (open != null) {

@@ -52,4 +52,9 @@
     <string name="about_credit">مبني على CarAALink من تطوير JObersi10</string>
     <string name="about_license">مجاني ومفتوح المصدر، برخصة GPL-3.0</string>
     <string name="about_source">الكود المصدري</string>
+    <string name="fgs_channel">الاتصال بالسيارة</string>
+    <string name="fgs_connecting">جارٍ الاتصال بسيارتك…</string>
+    <string name="fgs_connected">متصل بسيارتك</string>
+    <string name="fgs_problem">مشكلة في الاتصال، جارٍ إعادة المحاولة…</string>
+    <string name="fgs_stop">إيقاف</string>
 </resources>

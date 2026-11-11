@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -54,6 +55,13 @@ class AaCarPresentation(
         val root = FrameLayout(context).apply { setBackgroundColor(Color.BLACK) }
         val area = FrameLayout(context)
         val texture = TextureView(context)
+        // The handshake can take a while; say so until the first frame lands instead of showing black.
+        val starting = TextView(context).apply {
+            setText(dev.caraalink.R.string.car_starting)
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+        }
         texture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
                 st.setDefaultBufferSize(videoWidth, videoHeight)
@@ -66,7 +74,9 @@ class AaCarPresentation(
                 surface = null
                 return true
             }
-            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {
+                if (starting.visibility != View.GONE) starting.visibility = View.GONE
+            }
         }
         // Multi-touch (pinch/rotate): AA's TouchEvent.touch_location is a
         // repeated field (confirmed from mrmees/open-android-auto's
@@ -155,6 +165,7 @@ class AaCarPresentation(
             }
         }
         root.addView(area, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        root.addView(starting, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         dev.caraalink.diagnostics.PerfStats.attachHud(context, root)
         setContentView(root)
     }

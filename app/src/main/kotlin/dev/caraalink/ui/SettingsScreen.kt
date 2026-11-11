@@ -14,10 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -27,7 +25,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -55,19 +55,19 @@ fun SubScreen(title: String, onBack: () -> Unit, content: @Composable ColumnScop
 fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) {
     val context = LocalContext.current
     SubScreen(stringResource(R.string.settings), onBack) {
-        SettingsRow(Icons.Rounded.SystemUpdate, stringResource(R.string.settings_updates)) {
+        SettingsRow(rememberVectorPainter(Icons.Rounded.Refresh), stringResource(R.string.settings_updates)) {
             UpdateChecker.checkNow(context, manual = true)
         }
-        SettingsRow(Icons.AutoMirrored.Rounded.HelpOutline, stringResource(R.string.help), onHelp)
-        SettingsRow(Icons.Rounded.Info, stringResource(R.string.settings_about), onAbout)
-        SettingsRow(Icons.Rounded.Tune, stringResource(R.string.settings_advanced)) {
+        SettingsRow(painterResource(R.drawable.ic_help), stringResource(R.string.help), onHelp)
+        SettingsRow(rememberVectorPainter(Icons.Rounded.Info), stringResource(R.string.settings_about), onAbout)
+        SettingsRow(painterResource(R.drawable.ic_tune), stringResource(R.string.settings_advanced)) {
             context.startActivity(Intent(context, SettingsActivity::class.java))
         }
     }
 }
 
 @Composable
-private fun SettingsRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun SettingsRow(icon: Painter, label: String, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },

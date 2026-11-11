@@ -38,9 +38,12 @@ class CarSession(
 
     /** The driver left Android Auto on purpose; stay on Closed until they tap to reopen. */
     private fun closeAa() {
+        aaWatchdog.removeCallbacksAndMessages(null)
         dev.caraalink.aa.AaSessionProbe.active?.stop()
         display.showStatus(CarScreen.CLOSED)
     }
+
+    @Volatile private var released = false
 
     private val frameLock = Any()
     @Volatile private var dataStream: MirrorStream? = null
@@ -89,7 +92,8 @@ class CarSession(
     }
 
     private fun release() {
-        aaWatchdog.removeCallbacks(aaWatchdogTick)
+        released = true
+        aaWatchdog.removeCallbacksAndMessages(null)
         pollThread?.interrupt()
         pollThread = null
         AndroidAutoServer.cancelNeedsTap(context)
@@ -129,6 +133,7 @@ class CarSession(
     @Volatile private var openingAa = false
 
     private fun openAndroidAuto() {
+        if (released) return
         if (dev.caraalink.aa.AaSessionProbe.active != null) {
             showAaSurface()
             return
@@ -147,6 +152,7 @@ class CarSession(
                 logger.log("openAndroidAuto: server not listening -- waiting for the driver to start it")
                 openingAa = false
                 main.post {
+                    if (released) return@post
                     display.showStatus(CarScreen.WAITING)
                     AndroidAutoServer.notifyNeedsTap(context)
                     startServerPoll(SERVER_POLL_MS)
@@ -155,13 +161,18 @@ class CarSession(
             }
             // Gearhead tears down the previous session for ~2s after an exit; don't race it.
             Thread.sleep(2000)
+            if (!mayAutoOpenAa(released, display.screen)) {
+                logger.log("openAndroidAuto: unplugged or closed while starting -- not opening")
+                openingAa = false
+                return@Thread
+            }
             logger.log("openAndroidAuto: starting AA session probe")
             val probe = dev.caraalink.aa.AaSessionProbe(context)
             probe.onEstablished = { AndroidAutoServer.cancelNeedsTap(context) }
             probe.onGaveUp = { main.post { onAaNotResponding() } }
             probe.start()
             openingAa = false
-            main.post { showAaSurface() }
+            main.post { if (!released) showAaSurface() }
         }, "AA-server-check").start()
     }
 
@@ -170,6 +181,7 @@ class CarSession(
 
     /** Server listening but every handshake failed: tell the driver, keep retrying. */
     private fun onAaNotResponding() {
+        if (!mayAutoOpenAa(released, display.screen)) return
         logger.log("AA handshake retries used up -- server not responding")
         display.showStatus(CarScreen.NOT_RESPONDING)
         AndroidAutoServer.notifyNeedsTap(context, notResponding = true)
@@ -178,7 +190,7 @@ class CarSession(
 
     /** While the car waits on the server, check it off the main thread and reopen Android Auto once it's up. */
     private fun startServerPoll(intervalMs: Long) {
-        if (pollThread?.isAlive == true) return
+        if (released || pollThread?.isAlive == true) return
         pollThread = Thread({
             try {
                 while (true) {
@@ -188,7 +200,9 @@ class CarSession(
                     if (display.mode != CarDisplay.Mode.STATUS || !waiting) return@Thread
                     if (AndroidAutoServer.shouldAutoOpen(screen, AndroidAutoServer.isRunning())) {
                         main.post {
-                            if (display.mode == CarDisplay.Mode.STATUS && AndroidAutoServer.shouldAutoOpen(display.screen, true)) openAndroidAuto()
+                            if (!released && display.mode == CarDisplay.Mode.STATUS &&
+                                AndroidAutoServer.shouldAutoOpen(display.screen, true)
+                            ) openAndroidAuto()
                         }
                         return@Thread
                     }
@@ -220,6 +234,7 @@ class CarSession(
     // off the stall threshold on each consecutive watchdog-triggered restart
     // instead of hammering it at the same fixed interval forever.
     private var watchdogRestartStreak = 0
+    private var inactiveSince = 0L
     private val aaWatchdogTick = object : Runnable {
         override fun run() {
             val probe = dev.caraalink.aa.AaSessionProbe.active
@@ -231,22 +246,31 @@ class CarSession(
                     display.showStatus(CarScreen.CLOSED)
                 } else {
                     val staleMs = System.currentTimeMillis() - probe.lastVideoFrameAt
+                    if (probe.isConnectionActive) inactiveSince = 0L
                     if (probe.hasReceivedVideo && !probe.isConnectionActive) {
-                        // AaSessionProbe owns reconnects after EOF/reset and
-                        // deliberately backs off between attempts. Do not
-                        // mistake that quiet backoff window for a frozen,
-                        // still-connected video stream and cancel the retry.
+                        // The probe owns reconnect backoff, but if it lasts this long the server is gone:
+                        // fall back to the Waiting flow instead of leaving the last frame frozen.
+                        val now = System.currentTimeMillis()
+                        if (inactiveSince == 0L) inactiveSince = now
+                        if (lostServer(connectionActive = false, inactiveForMs = now - inactiveSince)) {
+                            logger.log("AA watchdog: no connection for ${now - inactiveSince}ms -- server lost")
+                            inactiveSince = 0L
+                            probe.stop()
+                            if (mayAutoOpenAa(released, display.screen)) openAndroidAuto()
+                            return
+                        }
                         aaWatchdog.postDelayed(this, AA_WATCHDOG_CHECK_MS)
                         return
                     }
                     if (!probe.hasReceivedVideo) {
                         val startupMs = staleMs
                         if (startupMs > AA_WATCHDOG_STARTUP_MS) {
-                            logger.log("AA watchdog: no video after ${startupMs}ms startup grace -- restarting session")
+                            // The server accepts but never answers ("goes deaf"); say so instead of a black screen.
+                            logger.log("AA watchdog: no video after ${startupMs}ms startup grace -- not responding")
                             dev.caraalink.diagnostics.PerfStats.aaReconnects++
-                            watchdogRestartStreak++
                             probe.stop()
-                            aaWatchdog.postDelayed({ openAndroidAuto() }, AA_TEARDOWN_RESTART_DELAY_MS)
+                            onAaNotResponding()
+                            return
                         }
                         aaWatchdog.postDelayed(this, AA_WATCHDOG_CHECK_MS)
                         return
@@ -259,7 +283,7 @@ class CarSession(
                         dev.caraalink.diagnostics.PerfStats.aaReconnects++
                         watchdogRestartStreak++
                         probe.stop()
-                        aaWatchdog.postDelayed({ openAndroidAuto() }, AA_TEARDOWN_RESTART_DELAY_MS)
+                        aaWatchdog.postDelayed({ if (mayAutoOpenAa(released, display.screen)) openAndroidAuto() }, AA_TEARDOWN_RESTART_DELAY_MS)
                     } else if (staleMs < AA_WATCHDOG_CHECK_MS) {
                         // A frame actually arrived since the last tick -- the
                         // session is genuinely healthy again, not just early
@@ -282,7 +306,7 @@ class CarSession(
             logger.log("AA video settings changed -- reconnecting session")
             dev.caraalink.aa.AaSessionProbe.active?.stop()
             // A warm restart needs a moment for gearhead to tear down the old session.
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ openAndroidAuto() }, 1500)
+            aaWatchdog.postDelayed({ if (mayAutoOpenAa(released, display.screen)) openAndroidAuto() }, 1500)
         }
         val config = dev.caraalink.aa.AaServiceDiscovery.configFromSettings(context)
         val fillMode = dev.caraalink.settings.AppSettings.aaFillMode(context)
@@ -565,6 +589,16 @@ class CarSession(
         private const val AA_TEARDOWN_RESTART_DELAY_MS = 1_500L
         private const val SERVER_POLL_MS = 2_000L
         private const val NOT_RESPONDING_RETRY_MS = 5_000L
+
+        private const val LOST_SERVER_MS = 30_000L
+
+        /** Automatic reopens (restarts, retries, polls) must not undo an unplug or a deliberate exit. */
+        internal fun mayAutoOpenAa(released: Boolean, screen: CarScreen): Boolean =
+            !released && screen != CarScreen.CLOSED
+
+        /** Reconnect backoff that long means Android Auto's server is gone, not just restarting. */
+        internal fun lostServer(connectionActive: Boolean, inactiveForMs: Long): Boolean =
+            !connectionActive && inactiveForMs >= LOST_SERVER_MS
 
         // AA's head unit server never answers again after a connection we close, so probe by bind, not connect.
         internal fun isListening(port: Int): Boolean = runCatching {

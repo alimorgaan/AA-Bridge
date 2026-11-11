@@ -57,4 +57,9 @@
     <string name="about_credit">Based on CarAALink by JObersi10</string>
     <string name="about_license">Free and open source, GPL-3.0</string>
     <string name="about_source">Source code</string>
+    <string name="fgs_channel">Car connection</string>
+    <string name="fgs_connecting">Connecting to your car…</string>
+    <string name="fgs_connected">Connected to your car</string>
+    <string name="fgs_problem">Connection problem, trying again…</string>
+    <string name="fgs_stop">Stop</string>
 </resources>

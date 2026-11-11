@@ -21,8 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DirectionsCar
-import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -41,7 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -128,9 +127,9 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit) {
             ) {
                 Spacer(Modifier.height(32.dp))
                 val (icon, tint) = when (state) {
-                    HomeState.READY -> Icons.Rounded.Check to (colors.primaryContainer to colors.onPrimaryContainer)
-                    HomeState.NEEDS_TAP -> Icons.Rounded.TouchApp to amber
-                    HomeState.CONNECTED -> Icons.Rounded.DirectionsCar to (colors.primaryContainer to colors.onPrimaryContainer)
+                    HomeState.READY -> rememberVectorPainter(Icons.Rounded.Check) to (colors.primaryContainer to colors.onPrimaryContainer)
+                    HomeState.NEEDS_TAP -> painterResource(R.drawable.ic_touch_app) to amber
+                    HomeState.CONNECTED -> painterResource(R.drawable.ic_car) to (colors.primaryContainer to colors.onPrimaryContainer)
                 }
                 StatusIcon(icon, tint.first, tint.second)
                 Spacer(Modifier.height(24.dp))
@@ -176,7 +175,7 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit) {
 }
 
 @Composable
-private fun StatusIcon(icon: ImageVector, background: Color, tint: Color) {
+private fun StatusIcon(icon: Painter, background: Color, tint: Color) {
     Box(Modifier.size(112.dp).background(background, CircleShape), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(56.dp))
     }
