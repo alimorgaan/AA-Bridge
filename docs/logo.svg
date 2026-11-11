@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="160" viewBox="0 0 500 160" role="img" aria-label="AA Bridge">
+  <rect width="500" height="160" rx="24" fill="#0F766E"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 102 H152"/>
+    <path d="M44 102 Q92 4 140 102"/>
+    <path d="M68 102 V65 M92 102 V53 M116 102 V65"/>
+  </g>
+  <text x="178" y="100" fill="#FFFFFF" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" letter-spacing="-1">AA Bridge</text>
+</svg>
