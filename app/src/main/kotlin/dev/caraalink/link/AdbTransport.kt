@@ -23,7 +23,7 @@ class AdbTransport(
     private val logger: DiagnosticLogger,
     private val handlerFor: (service: String) -> StreamHandler?,
     private val onClosed: (reason: String) -> Unit,
-) {
+) : CarTransport {
 
     interface StreamHandler {
         fun onOpen(stream: MirrorStream) {}
@@ -138,7 +138,7 @@ class AdbTransport(
         }, "AdbTransport").also { it.start() }
     }
 
-    fun stop(reason: String = "stopped") {
+    override fun stop(reason: String) {
         if (!running.compareAndSet(true, false)) return
         streams.values.toList().forEach { it.closedByRemote() }
         conn.close()

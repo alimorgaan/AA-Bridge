@@ -22,12 +22,12 @@ import java.util.ArrayDeque
  */
 class CarSession(
     private val context: Context,
-    private val accessory: UsbAccessory,
+    private val accessory: UsbAccessory?,
     private val onEnded: (String) -> Unit,
 ) : MirrorHost {
 
     private val logger = DiagnosticLogger(context, "car-session")
-    private var transport: AdbTransport? = null
+    private var transport: CarTransport? = null
     private var config: CaptureConfig? = null
     private var lastBitRate: Int = -1
     private var encoder: CarVideoEncoder? = null
@@ -56,6 +56,7 @@ class CarSession(
     private var waitingForKey = true
 
     fun start(): Boolean {
+        val accessory = accessory ?: return false
         val conn = UsbAccessoryConnection.open(context, accessory) ?: run {
             logger.log("openAccessory() returned null")
             return false
@@ -66,23 +67,35 @@ class CarSession(
                 accessoryModel = accessory.model, lastError = null)
         }
         features.start()
+        transport = AdbTransport(conn, logger, channels(), ::onTransportClosed).also { it.start() }
+        return true
+    }
+
+    /** The same channels over the car's Wi-Fi Direct TCP connections; the car shows up on its first CLIENT_INFO. */
+    fun startWireless() {
+        features.start()
+        transport = SocketTransport(logger, channels(), ::onTransportClosed).also { it.start() }
+    }
+
+    private fun channels(): (String) -> AdbTransport.StreamHandler? {
         val pxc = PxcChannel(logger, { info -> onClientInfo(info) }, features::replyBody).also { this.pxc = it }
         val ctrl = MirrorControlChannel(logger, this, context)
         val data = MirrorDataChannel(logger, this)
-        transport = AdbTransport(conn, logger, { service ->
+        return { service ->
             when (service) {
                 "tcp:10922" -> pxc
                 "tcp:10921" -> ctrl
                 "tcp:10920" -> data
                 else -> null
             }
-        }) { reason ->
-            Log.i(TAG, "transport closed: $reason")
-            release()
-            ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.ERROR, lastError = reason) }
-            onEnded(reason)
-        }.also { it.start() }
-        return true
+        }
+    }
+
+    private fun onTransportClosed(reason: String) {
+        Log.i(TAG, "transport closed: $reason")
+        release()
+        ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.ERROR, lastError = reason) }
+        onEnded(reason)
     }
 
     fun stop() {
@@ -109,7 +122,10 @@ class CarSession(
     private fun onClientInfo(info: JSONObject) {
         logger.log("Head unit: ${info.optString("HUName")} screenType=${info.optInt("screenType")} " +
             "mirror=${info.optBoolean("supportScreenMirroring")} touch=${info.optBoolean("supportScreenTouch")}")
-        ConnectionStateHolder.update { it.copy(carName = info.optString("carBrand").ifBlank { null }) }
+        ConnectionStateHolder.update {
+            val attached = if (it.phase == ConnectionPhase.DISCONNECTED || it.phase == ConnectionPhase.ERROR) ConnectionPhase.ATTACHED else it.phase
+            it.copy(carName = info.optString("carBrand").ifBlank { null }, phase = attached, lastError = null)
+        }
     }
 
     // --- car home screen actions ---
