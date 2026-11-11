@@ -7,6 +7,7 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -15,9 +16,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <!-- Without this, ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS silently
-         fails on many OEM builds instead of showing the system dialog. -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Installing the downloaded update APK ourselves (instead of just
          opening the release page and making the user do it) needs this on
          API 26+, same as any app distributed outside the Play Store. -->
@@ -59,10 +57,6 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false" />
 
-        <activity
-            android:name=".onboarding.OnboardingActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:exported="false" />
 
         <activity
             android:name=".diagnostics.ConnectionDiagnosticsActivity"
@@ -83,7 +77,7 @@
         <service
             android:name=".service.UsbLinkForegroundService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|microphone" />
 
 
         <provider

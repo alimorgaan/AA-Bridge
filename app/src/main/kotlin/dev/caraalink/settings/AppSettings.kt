@@ -21,6 +21,13 @@ object AppSettings {
     private fun prefs(context: Context) =
         PreferenceManager.getDefaultSharedPreferences(context)
 
+    fun setupComplete(context: Context): Boolean = prefs(context).getBoolean("setup_complete", false)
+    fun setSetupComplete(context: Context, value: Boolean) = prefs(context).edit().putBoolean("setup_complete", value).apply()
+    fun devModeConfirmed(context: Context): Boolean = prefs(context).getBoolean("dev_mode_confirmed", false)
+    fun setDevModeConfirmed(context: Context, value: Boolean) = prefs(context).edit().putBoolean("dev_mode_confirmed", value).apply()
+    fun carConnectedOnce(context: Context): Boolean = prefs(context).getBoolean("car_connected_once", false)
+    fun setCarConnectedOnce(context: Context) = prefs(context).edit().putBoolean("car_connected_once", true).apply()
+
     fun resolutionMode(context: Context): ResolutionMode =
         when (prefs(context).getString("video_resolution_mode", "auto")) {
             "custom" -> ResolutionMode.CUSTOM

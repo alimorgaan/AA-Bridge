@@ -32,4 +32,16 @@
     <string name="open_aa">Open Android Auto</string>
     <string name="settings">Settings</string>
     <string name="help">Help</string>
+    <string name="setup_title">Let\'s set it up</string>
+    <string name="setup_subtitle">One time, about 2 minutes.</string>
+    <string name="setup_perm_title">Allow notifications, location and microphone</string>
+    <string name="setup_perm_body">Notifications tell you when Android Auto needs a tap. Location sets night mode. The microphone is for voice.</string>
+    <string name="setup_perm_button">Allow</string>
+    <string name="setup_dev_title">Turn on Android Auto developer mode</string>
+    <string name="setup_dev_body">In Android Auto settings, tap Version 10 times.</string>
+    <string name="setup_dev_done">I did this</string>
+    <string name="setup_server_title">Start Android Auto\'s server</string>
+    <string name="setup_server_body">Tap ⋮, then Start head unit server.</string>
+    <string name="setup_car_title">Plug into your car</string>
+    <string name="setup_car_body">When your phone asks, choose AA Bridge, then Always.</string>
 </resources>

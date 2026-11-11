@@ -17,10 +17,11 @@ import androidx.compose.runtime.setValue
 import dev.caraalink.aa.AaSessionProbe
 import dev.caraalink.aa.AaTlsReceiver
 import dev.caraalink.aa.AaVersionProbe
-import dev.caraalink.onboarding.OnboardingActivity
 import dev.caraalink.service.UsbLinkForegroundService
 import dev.caraalink.settings.SettingsActivity
+import dev.caraalink.settings.AppSettings
 import dev.caraalink.ui.HomeScreen
+import dev.caraalink.ui.SetupScreen
 import dev.caraalink.ui.theme.AaBridgeTheme
 
 enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT }
@@ -30,7 +31,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        private const val PREF_ONBOARDING_SHOWN = "onboarding_shown"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,26 +41,20 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Restarted after a crash: $summary", Toast.LENGTH_LONG).show()
         }
         dev.caraalink.update.UpdateChecker.checkIfDue(this)
-        maybeShowOnboarding()
         maybeAutoStartOnAttach(intent)
         maybeStartAaTls(intent)
-        if (intent?.action != UsbManager.ACTION_USB_ACCESSORY_ATTACHED &&
-            checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            // The car asks the phone for GPS, and night mode uses the location.
-            requestPermissions(arrayOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-            ), 8)
-        }
+        val firstScreen = if (AppSettings.setupComplete(this)) Screen.HOME else Screen.SETUP
         setContent {
             AaBridgeTheme {
-                var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
-                BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
-                HomeScreen(
-                    onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
-                    onOpenHelp = { startActivity(Intent(this, OnboardingActivity::class.java)) },
-                )
+                var screen by rememberSaveable { mutableStateOf(firstScreen) }
+                BackHandler(enabled = screen != Screen.HOME && AppSettings.setupComplete(this)) { screen = Screen.HOME }
+                when (screen) {
+                    Screen.SETUP -> SetupScreen(onDone = { screen = Screen.HOME })
+                    else -> HomeScreen(
+                        onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
+                        onOpenHelp = { screen = Screen.SETUP },
+                    )
+                }
             }
         }
     }
@@ -158,10 +152,4 @@ class MainActivity : ComponentActivity() {
         maybeStartAaTls(intent)
     }
 
-    private fun maybeShowOnboarding() {
-        val prefs = getPreferences(MODE_PRIVATE)
-        if (prefs.getBoolean(PREF_ONBOARDING_SHOWN, false)) return
-        prefs.edit().putBoolean(PREF_ONBOARDING_SHOWN, true).apply()
-        startActivity(Intent(this, OnboardingActivity::class.java))
-    }
 }

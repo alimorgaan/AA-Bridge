@@ -24,6 +24,7 @@ import dev.caraalink.MainActivity
 import dev.caraalink.connection.ConnectionPhase
 import dev.caraalink.connection.ConnectionSnapshot
 import dev.caraalink.connection.ConnectionStateHolder
+import dev.caraalink.settings.AppSettings
 import dev.caraalink.diagnostics.AdbHandshakeProbe
 import dev.caraalink.diagnostics.UsbSnifferDiagnostic
 
@@ -65,7 +66,10 @@ class UsbLinkForegroundService : Service() {
     private val stateListener: (ConnectionSnapshot) -> Unit = {
         updateNotification(it)
         // A reconnect that streams again refills the budget; a dead link never streams, so it still gives up.
-        if (it.phase == ConnectionPhase.STREAMING) handler.post { transportReconnectAttempts = 0 }
+        if (it.phase == ConnectionPhase.STREAMING) {
+            handler.post { transportReconnectAttempts = 0 }
+            AppSettings.setCarConnectedOnce(this)
+        }
     }
 
     // Shouldn't keep running (and showing a notification) indefinitely once
@@ -138,8 +142,7 @@ class UsbLinkForegroundService : Service() {
         // unplugged between the intent being sent and this running). Don't
         // let that take the whole app down.
         val started = try {
-            startForeground(NOTIFICATION_ID, buildNotification(ConnectionStateHolder.snapshot),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            startForegroundWithMic()
             true
         } catch (e: SecurityException) {
             Log.w(TAG, "startForeground(connectedDevice) refused -- accessory permission likely lapsed", e)
@@ -255,6 +258,25 @@ class UsbLinkForegroundService : Service() {
     private fun maybeScheduleReconnect(snapshot: ConnectionSnapshot) {
         if (snapshot.phase != ConnectionPhase.ERROR) return
         stopSelfCleanly()
+    }
+
+    /**
+     * Android 14 refuses a microphone-typed start from the background (transport reconnects run there),
+     * so fall back to connectedDevice alone rather than failing the session.
+     */
+    private fun startForegroundWithMic() {
+        val notification = buildNotification(ConnectionStateHolder.snapshot)
+        val micGranted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (micGranted) {
+            try {
+                startForeground(NOTIFICATION_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                return
+            } catch (e: SecurityException) {
+                Log.w(TAG, "startForeground with microphone refused -- retrying connectedDevice only", e)
+            }
+        }
+        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
     }
 
     /** Transport-level read/write failure, as opposed to a clean close or a real unplug. */
