@@ -62,19 +62,6 @@ class CarSession(
     private var pendingRequests = 0
     private var waitingForKey = true
     private var lastKeyFrame: ByteArray? = null
-    // Confirmed from a real log (chatgpt-status.md "starvation" finding):
-    // of 7303 total frame responses in one session, only 2777 were a fresh
-    // encode -- the rest were this starvation fallback, and it was always
-    // resending lastKeyFrame specifically, however old that keyframe was
-    // relative to whatever the car had most recently been shown. Repeating
-    // the actual last frame we sent (key or not) instead keeps every
-    // fallback response the freshest thing the car has already seen, rather
-    // than yanking the picture back to an arbitrarily older keyframe.
-    private var lastSentFrame: ByteArray? = null
-    // At most one starvation replay per encoded frame. Re-sending the same
-    // cached H.264 access unit on every pull can make moving scenes visibly
-    // loop/stutter while the encoder is behind.
-    private var lastStarvationRepeat: ByteArray? = null
 
     fun start(): Boolean {
         val conn = UsbAccessoryConnection.open(context, accessory) ?: run {
@@ -546,16 +533,8 @@ class CarSession(
             waitingForKey = true
             pendingRequests = 0
             pullQueue.clear()
-            // Don't let a starvation fallback hand a brand-new stream a
-            // frame left over from the previous one. lastKeyFrame was never
-            // cleared here before -- confirmed real (ChatGPT repo-grounded
-            // review, 2026-11-04): on a fresh reopen lastSentFrame is null,
-            // so the fallback fell through to a *stale* lastKeyFrame from
-            // the prior stream, the one case waitingForKey exists to
-            // prevent on the normal (non-starvation) send path.
-            lastSentFrame = null
+            // A starvation resend must never hand a new stream the previous stream's keyframe.
             lastKeyFrame = null
-            lastStarvationRepeat = null
             discardingUntilKeyframe = false
         }
         logger.log("data stream open; encoded so far=$framesEncoded, requesting keyframe")
@@ -577,14 +556,6 @@ class CarSession(
             val next = pullQueue.poll()
             if (next == null) {
                 pendingRequests++
-                // Was unconditional here -- confirmed real (ChatGPT
-                // repo-grounded review, 2026-11-04): with the car pulling at
-                // ~79 req/s and the queue usually empty, this fired a sync-
-                // frame request on nearly every single request, forcing
-                // constant IDRs (much bigger than P-frames) instead of
-                // letting the encoder's normal GOP structure run -- wasted
-                // bandwidth that could've gone to actual picture quality.
-                maybeRequestKeyFrame()
                 scheduleStarvationCheck(stream)
                 return
             }
@@ -592,45 +563,21 @@ class CarSession(
         }
     }
 
-    private var lastKeyFrameRequestMs = 0L
-
-    /** Caller holds [frameLock]. Rate-limited so starvation/empty-pull don't force an IDR on nearly every frame request. */
-    private fun maybeRequestKeyFrame() {
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (now - lastKeyFrameRequestMs < 500) return
-        lastKeyFrameRequestMs = now
-        encoder?.requestKeyFrame()
-    }
-
     private val watchdog = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /**
-     * If the encoder stays silent, answer with the freshest frame already
-     * sent so the car never times out -- but never before this stream's own
-     * first real keyframe has actually arrived ([waitingForKey]); until then
-     * the pending request just stays pending rather than risk handing the
-     * decoder a frame from before this stream existed. Caller holds no lock
-     * on entry; the watchdog callback below takes [frameLock] itself.
-     */
+    /** If the encoder stalls, answer with the last keyframe so the car never times out. Caller holds [frameLock]. */
     private fun scheduleStarvationCheck(stream: MirrorStream) {
+        val sentBefore = framesSent
         watchdog.postDelayed({
-            // The encoder missing its window repeatedly is a sign it's
-            // genuinely behind, not a one-off -- nudge it toward a fresh IDR
-            // instead of only ever resending old data (chatgpt-status.md
-            // "Not yet confirmed" lead from the OpenCFLink comparison).
             synchronized(frameLock) {
-                // Never fall back to any cached frame while still waiting for
-                // this stream's own first real keyframe -- lastKeyFrame is
-                // now cleared on reopen, so this is the empty-stream case,
-                // not a stale one; sending nothing and letting the request
-                // stay pending is correct here, the car already blocks.
-                if (waitingForKey) return@synchronized
-                maybeRequestKeyFrame()
-                val repeat = lastSentFrame ?: lastKeyFrame
-                if (pendingRequests > 0 && dataStream === stream && repeat != null && repeat !== lastStarvationRepeat) {
+                val key = lastKeyFrame
+                // Anything sent since this request means the encoder is alive and the request will be answered.
+                if (framesSent == sentBefore && pendingRequests > 0 && dataStream === stream && key != null) {
                     pendingRequests--
-                    sendFrameLocked(stream, repeat)
-                    lastStarvationRepeat = repeat
+                    sendFrameLocked(stream, key)
+                    // P-frames after an old keyframe decode against the wrong picture, so restart on a fresh one.
+                    waitingForKey = true
+                    encoder?.requestKeyFrame()
                 }
             }
         }, ENCODER_STALL_MS)
@@ -638,9 +585,6 @@ class CarSession(
 
     /** Caller holds [frameLock]. Codec config always precedes the first frame. */
     private fun sendFrameLocked(stream: MirrorStream, frame: ByteArray) {
-        // A real/newly selected frame makes one subsequent starvation replay
-        // eligible; encoding alone does not if pull mode hasn't delivered it.
-        lastStarvationRepeat = null
         val cfg = codecConfig
         if (!configSent && cfg != null) {
             stream.write(MirrorDataChannel.frame(cfg) + MirrorDataChannel.frame(frame))
@@ -648,7 +592,6 @@ class CarSession(
         } else {
             stream.write(MirrorDataChannel.frame(frame))
         }
-        lastSentFrame = frame
         framesSent++
         if (framesSent <= 3 || framesSent % 300 == 0L) logger.log("frame sent #$framesSent (${frame.size} bytes)")
     }
