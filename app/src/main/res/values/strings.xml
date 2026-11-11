@@ -44,4 +44,17 @@
     <string name="setup_server_body">Tap ⋮, then Start head unit server.</string>
     <string name="setup_car_title">Plug into your car</string>
     <string name="setup_car_body">When your phone asks, choose AA Bridge, then Always.</string>
+    <string name="settings_updates">Check for updates</string>
+    <string name="settings_about">About</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="help_blank_q">The car screen shows nothing</string>
+    <string name="help_blank_a">Check the USB cable, then make sure Android Auto\'s server is running: open Android Auto, tap ⋮, Start head unit server.</string>
+    <string name="help_tap_q">Android Auto needs a tap</string>
+    <string name="help_tap_a">Android Auto\'s server stops when your phone restarts. Tap the notification, then ⋮ → Start head unit server.</string>
+    <string name="help_ask_q">My phone asks which app to open</string>
+    <string name="help_ask_a">Choose AA Bridge, then Always. It won\'t ask again.</string>
+    <string name="help_setup_again">Run setup again</string>
+    <string name="about_credit">Based on CarAALink by JObersi10</string>
+    <string name="about_license">Free and open source, GPL-3.0</string>
+    <string name="about_source">Source code</string>
 </resources>

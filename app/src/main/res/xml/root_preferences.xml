@@ -29,7 +29,7 @@
             android:title="Target frame rate"
             android:entries="@array/frame_rate_entries"
             android:entryValues="@array/frame_rate_values"
-            android:defaultValue="30" />
+            android:defaultValue="60" />
         <EditTextPreference
             android:key="video_bitrate_kbps"
             android:title="Video bitrate (kbps)"

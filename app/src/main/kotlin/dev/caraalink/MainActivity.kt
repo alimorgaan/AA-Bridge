@@ -18,9 +18,11 @@ import dev.caraalink.aa.AaSessionProbe
 import dev.caraalink.aa.AaTlsReceiver
 import dev.caraalink.aa.AaVersionProbe
 import dev.caraalink.service.UsbLinkForegroundService
-import dev.caraalink.settings.SettingsActivity
 import dev.caraalink.settings.AppSettings
+import dev.caraalink.ui.AboutScreen
+import dev.caraalink.ui.HelpScreen
 import dev.caraalink.ui.HomeScreen
+import dev.caraalink.ui.SettingsScreen
 import dev.caraalink.ui.SetupScreen
 import dev.caraalink.ui.theme.AaBridgeTheme
 
@@ -47,13 +49,25 @@ class MainActivity : ComponentActivity() {
         setContent {
             AaBridgeTheme {
                 var screen by rememberSaveable { mutableStateOf(firstScreen) }
-                BackHandler(enabled = screen != Screen.HOME && AppSettings.setupComplete(this)) { screen = Screen.HOME }
+                var fromSettings by rememberSaveable { mutableStateOf(false) }
+                val back = {
+                    screen = if (fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT)) Screen.SETTINGS else Screen.HOME
+                    if (screen == Screen.HOME) fromSettings = false
+                }
+                BackHandler(enabled = screen != Screen.HOME && screen != Screen.SETUP) { back() }
                 when (screen) {
                     Screen.SETUP -> SetupScreen(onDone = { screen = Screen.HOME })
-                    else -> HomeScreen(
-                        onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
-                        onOpenHelp = { screen = Screen.SETUP },
+                    Screen.HOME -> HomeScreen(
+                        onOpenSettings = { screen = Screen.SETTINGS },
+                        onOpenHelp = { fromSettings = false; screen = Screen.HELP },
                     )
+                    Screen.SETTINGS -> SettingsScreen(
+                        onBack = back,
+                        onHelp = { fromSettings = true; screen = Screen.HELP },
+                        onAbout = { fromSettings = true; screen = Screen.ABOUT },
+                    )
+                    Screen.HELP -> HelpScreen(onBack = back, onRunSetup = { fromSettings = false; screen = Screen.SETUP })
+                    Screen.ABOUT -> AboutScreen(onBack = back)
                 }
             }
         }

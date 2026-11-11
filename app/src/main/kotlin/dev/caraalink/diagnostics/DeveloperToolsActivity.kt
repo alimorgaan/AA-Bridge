@@ -50,12 +50,14 @@ class DeveloperToolsActivity : Activity() {
         root.addView(button("Save log to Downloads") { saveLogToDownloads() })
         root.addView(button("Clear logs") { clearLogs() })
 
-        root.addView(section("Car Preview: shows AA Bridge's own car home screen on this phone, " +
-            "same as the car sees it -- tap its Android Auto tile to start (or attach to) a " +
-            "real AA session with decoded video and touch, for testing without the car."))
+        root.addView(section("Car Preview: starts (or attaches to) a real Android Auto session on this " +
+            "phone, with decoded video and touch, for testing without the car."))
 
         root.addView(button("Car Preview") {
             startActivity(Intent(this@DeveloperToolsActivity, dev.caraalink.aa.AaPreviewActivity::class.java))
+        })
+        root.addView(button("Connection diagnostics") {
+            startActivity(Intent(this@DeveloperToolsActivity, ConnectionDiagnosticsActivity::class.java))
         })
 
         setContentView(

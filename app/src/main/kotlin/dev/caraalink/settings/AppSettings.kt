@@ -57,7 +57,7 @@ object AppSettings {
         }
 
     fun frameRate(context: Context): Int =
-        prefs(context).getString("video_frame_rate", "30")?.toIntOrNull() ?: 30
+        prefs(context).getString("video_frame_rate", "60")?.toIntOrNull() ?: 60
 
     fun videoBitrateKbps(context: Context): Int =
         prefs(context).getString("video_bitrate_kbps", "6000")?.toIntOrNull() ?: 6000
