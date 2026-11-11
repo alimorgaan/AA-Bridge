@@ -267,30 +267,6 @@ class UsbLinkForegroundService : Service() {
         super.onDestroy()
     }
 
-    /**
-     * There was never a "Disconnect"/"Exit" control anywhere in the app --
-     * the only user-facing way to end a session was unplugging the USB
-     * cable (which the detach receiver above deliberately waits 30s on, in
-     * case it's a brief reseat). Swiping CarAALink away from recents does
-     * NOT call onDestroy() on its own -- without overriding this, the
-     * foreground service (and the whole USB/AA session underneath it) just
-     * keeps running invisibly in the background. That's "CarAALink won't
-     * close cleanly": swiping it away looks like closing it, but the stale
-     * session stays alive and wedged, which is exactly the kind of state
-     * that then needs the head-unit-server toggle to actually break.
-     */
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        if (!endsOnSwipe(ConnectionStateHolder.snapshot.link)) {
-            Log.i(TAG, "onTaskRemoved: app swiped away -- wireless keeps running")
-            super.onTaskRemoved(rootIntent)
-            return
-        }
-        Log.i(TAG, "onTaskRemoved: app swiped away -- stopping session")
-        stopping = true
-        stopSelfCleanly()
-        super.onTaskRemoved(rootIntent)
-    }
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     /**
@@ -659,9 +635,6 @@ class UsbLinkForegroundService : Service() {
         const val ACTION_START_ADB_PROBE = "dev.caraalink.service.action.START_ADB_PROBE"
         const val ACTION_STOP = "dev.caraalink.service.action.STOP"
         const val ACTION_START_SESSION = "dev.caraalink.service.action.START_SESSION"
-        /** Wireless keeps running when the app is swiped away, as CarbitLink does; Disconnect or Stop ends it. */
-        internal fun endsOnSwipe(link: CarLink): Boolean = link != CarLink.WIRELESS
-
         /** A session that just failed stops the service; a leftover ERROR seen by a later update must not. */
         internal fun shouldStopOnError(previous: ConnectionPhase?, snapshot: ConnectionSnapshot): Boolean =
             snapshot.phase == ConnectionPhase.ERROR && previous != ConnectionPhase.ERROR && snapshot.link != CarLink.WIRELESS

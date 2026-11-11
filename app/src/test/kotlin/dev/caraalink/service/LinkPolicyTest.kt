@@ -26,11 +26,4 @@ class LinkPolicyTest {
         assertEquals(dev.caraalink.connection.WirelessPhase.FAILED, UsbLinkForegroundService.afterFailedAttempt(reconnectUntil = 120_000, now = 120_001))
         assertEquals(dev.caraalink.connection.WirelessPhase.FAILED, UsbLinkForegroundService.afterFailedAttempt(reconnectUntil = 0, now = 5_000))
     }
-
-    @Test
-    fun swipingTheAppAwayKeepsWireless() {
-        assertFalse(UsbLinkForegroundService.endsOnSwipe(CarLink.WIRELESS))
-        assertTrue(UsbLinkForegroundService.endsOnSwipe(CarLink.CABLE))
-        assertTrue(UsbLinkForegroundService.endsOnSwipe(CarLink.NONE))
-    }
 }
