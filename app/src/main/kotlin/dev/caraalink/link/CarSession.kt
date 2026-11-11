@@ -54,7 +54,6 @@ class CarSession(
     private var frameRequests = 0L
     private var pendingRequests = 0
     private var waitingForKey = true
-    private var lastKeyFrame: ByteArray? = null
 
     fun start(): Boolean {
         val conn = UsbAccessoryConnection.open(context, accessory) ?: run {
@@ -365,14 +364,8 @@ class CarSession(
         this.config = config
         CarScreenInfo.update(config.width, config.height)
         val fps = if (config.wantFps > 0) config.wantFps else 30
-        // Settings > Video > bitrate used to be decorative -- nothing ever
-        // read it, the encoder always used either the car's own requested
-        // bitrate or DEFAULT_BITRATE. Now it's a floor: the car's request
-        // (it may know its own decode limits) is still respected if it's
-        // already asking for more than the setting.
-        val settingsBitrate = dev.caraalink.settings.AppSettings.videoBitrateKbps(context) * 1000
-        val carBitrate = if (config.bitRate > 0) config.bitRate else DEFAULT_BITRATE
-        val bitRate = maxOf(carBitrate, settingsBitrate)
+        // The car's own request, as CarbitLink sends it; the setting only covers a car that asks for none.
+        val bitRate = if (config.bitRate > 0) config.bitRate else dev.caraalink.settings.AppSettings.videoBitrateKbps(context) * 1000
         // The dongle re-sends this CONFIG_CAPTURE control message on its own
         // periodically -- not just on an actual resolution/orientation change
         // -- confirmed from a real log: it showed up twice (~9s apart) during
@@ -438,8 +431,6 @@ class CarSession(
             waitingForKey = true
             pendingRequests = 0
             pullQueue.clear()
-            // A starvation resend must never hand a new stream the previous stream's keyframe.
-            lastKeyFrame = null
         }
         logger.log("data stream open; encoded so far=$framesEncoded, requesting keyframe")
         ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.STREAMING) }
@@ -455,8 +446,8 @@ class CarSession(
         frameRequests++
         if (frameRequests <= 3 || frameRequests % 100 == 0L) logger.log("frame request #$frameRequests (queued=${pullQueue.size})")
         synchronized(frameLock) {
-            // CarbitLink blocks until the encoder has a frame instead of answering
-            // "none", so hold the request and answer when the next frame lands.
+            // CarbitLink waits up to 200 ms for the encoder instead of answering "none",
+            // so hold the request and answer when the next frame lands.
             val next = pullQueue.poll()
             if (next == null) {
                 pendingRequests++
@@ -469,19 +460,15 @@ class CarSession(
 
     private val watchdog = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** If the encoder stalls, answer with the last keyframe so the car never times out. Caller holds [frameLock]. */
+    /** If the encoder stalls, answer with an empty frame as CarbitLink does; replaying an old one jumps the picture back. */
     private fun scheduleStarvationCheck(stream: MirrorStream) {
         val sentBefore = framesSent
         watchdog.postDelayed({
             synchronized(frameLock) {
-                val key = lastKeyFrame
                 // Anything sent since this request means the encoder is alive and the request will be answered.
-                if (framesSent == sentBefore && pendingRequests > 0 && dataStream === stream && key != null) {
+                if (framesSent == sentBefore && pendingRequests > 0 && dataStream === stream) {
                     pendingRequests--
-                    sendFrameLocked(stream, key)
-                    // P-frames after an old keyframe decode against the wrong picture, so restart on a fresh one.
-                    waitingForKey = true
-                    encoder?.requestKeyFrame()
+                    stream.write(MirrorDataChannel.NO_FRAME)
                 }
             }
         }, ENCODER_STALL_MS)
@@ -511,11 +498,14 @@ class CarSession(
                 configSent = false
                 return
             }
-            if (isKey) lastKeyFrame = data
             val stream = dataStream ?: return
-            // The car's decoder needs to start on a keyframe.
+            // The car's decoder needs to start on a keyframe, and to restart on one after a dropped frame.
             if (waitingForKey) {
-                if (!isKey) { encoder?.requestKeyFrame(); return }
+                if (!isKey) {
+                    dev.caraalink.diagnostics.PerfStats.mirrorFramesDropped++
+                    encoder?.requestKeyFrame()
+                    return
+                }
                 waitingForKey = false
             }
             if (pull) {
@@ -525,7 +515,8 @@ class CarSession(
                     return
                 }
                 if (pullQueue.size >= MAX_PULL_QUEUE) {
-                    if (!isKey) { encoder?.requestKeyFrame(); return }
+                    // Every later P-frame references this dropped one, so hold them all until a keyframe.
+                    if (!isKey) { waitingForKey = true; encoder?.requestKeyFrame(); return }
                     dev.caraalink.diagnostics.PerfStats.mirrorFramesDropped += pullQueue.size
                     pullQueue.clear()
                 }
@@ -533,7 +524,7 @@ class CarSession(
                 return
             }
             if (stream.backlogBytes() > MAX_PUSH_BACKLOG) {
-                if (!isKey) { encoder?.requestKeyFrame(); return }
+                if (!isKey) { waitingForKey = true; encoder?.requestKeyFrame(); return }
                 stream.clearBacklog()
             }
             sendFrameLocked(stream, data)
@@ -542,10 +533,9 @@ class CarSession(
 
     companion object {
         private const val TAG = "CarSession"
-        private const val DEFAULT_BITRATE = 3_000_000
         private const val APPSTATUS_BACKGROUND = 0x20030
-        private const val MAX_PULL_QUEUE = 8
-        private const val ENCODER_STALL_MS = 500L
+        private const val MAX_PULL_QUEUE = 2
+        private const val ENCODER_STALL_MS = 200L
         private const val MAX_PUSH_BACKLOG = 2 * 1024 * 1024
         private const val AA_WATCHDOG_CHECK_MS = 5_000L
         private const val AA_WATCHDOG_STALL_MS = 10_000L

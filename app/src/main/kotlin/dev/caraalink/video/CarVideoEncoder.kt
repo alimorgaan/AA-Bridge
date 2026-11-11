@@ -32,9 +32,10 @@ class CarVideoEncoder(
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-            // Static screens produce no new frames; repeat so the car keeps getting video.
-            setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 1_000_000L / fps)
+            // CarbitLink's values: a keyframe every 3 s, and repeats only on a screen static for 100 ms.
+            // Repeating every frame interval can slip copies between AA's frames and overflow the pull queue.
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 3)
+            setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
             setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
             setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel31)
             setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
