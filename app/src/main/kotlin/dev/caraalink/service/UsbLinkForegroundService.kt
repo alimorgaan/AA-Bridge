@@ -65,7 +65,11 @@ class UsbLinkForegroundService : Service() {
     private var transportReconnectRunnable: Runnable? = null
     private var stopping = false
 
-    private val stateListener: (ConnectionSnapshot) -> Unit = { updateNotification(it) }
+    private val stateListener: (ConnectionSnapshot) -> Unit = {
+        updateNotification(it)
+        // A reconnect that streams again refills the budget; a dead link never streams, so it still gives up.
+        if (it.phase == ConnectionPhase.STREAMING) handler.post { transportReconnectAttempts = 0 }
+    }
 
     // Shouldn't keep running (and showing a notification) indefinitely once
     // actually unplugged from the car -- 30s grace in case it's a brief
