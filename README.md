@@ -36,11 +36,8 @@ only CarbitLink's own protocol.
   piping those decoded frames into the CarbitLink video path (currently a
   separate on-phone preview), and the input/touch channel back to the car.
 
-See [`claude/handoff.md`](claude/handoff.md) for the current state in detail,
-[`claude/aa-receiver-notes.md`](claude/aa-receiver-notes.md) for the AA
-protocol findings (all cited to source or a live capture — see the ground
-rules below), and [`claude/roadmap.md`](claude/roadmap.md) for the CarbitLink
-wire protocol findings.
+See [`docs/CarbitLink-Protocol.md`](docs/CarbitLink-Protocol.md) for the
+CarbitLink wire protocol.
 
 ## Screenshots
 
@@ -53,7 +50,7 @@ No protocol detail — CarbitLink's wire format or Android Auto's — is ever
 guessed. Every claim traces to a decompiled source reference, a cited
 open-source implementation (`opencardev/aasdk`, `opencardev/openauto`), or a
 live capture. Anything unconfirmed is marked `UNKNOWN`, not filled in with a
-plausible guess. Full rules in [`claude/claude.md`](claude/claude.md).
+plausible guess.
 
 ## Project layout
 
@@ -62,7 +59,7 @@ plausible guess. Full rules in [`claude/claude.md`](claude/claude.md).
   pipeline, settings, diagnostics
 - `protocol/` — isolated module for the reverse-engineered CarbitLink wire
   protocol
-- `claude/` — working notes: ground rules, roadmap, handoff, AA findings
+- `docs/` — CarbitLink protocol notes
 - `.github/workflows/` — CI: builds `assembleDebug` on every push/PR, and
   publishes a rolling **dev pre-release** APK on every push to `main` (see
   below)

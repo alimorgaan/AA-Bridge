@@ -125,7 +125,7 @@
         <ListPreference
             android:key="usb_role_override"
             android:title="USB role override (debug)"
-            android:summary="Confirmed: phone is the USB accessory, head unit is the host (see claude/roadmap.md). Only override for testing."
+            android:summary="Confirmed: phone is the USB accessory, head unit is the host. Only override for testing."
             android:entries="@array/usb_role_entries"
             android:entryValues="@array/usb_role_values"
             android:defaultValue="auto" />

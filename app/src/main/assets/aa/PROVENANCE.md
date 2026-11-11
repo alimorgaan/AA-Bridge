@@ -37,7 +37,7 @@ standard interop credential for a head unit that did not come out of a car
 factory.
 
 **So this is not CarbitLink's proprietary key and it is not something
-reverse-engineered out of CarbitLink's binary** — the `claude/claude.md` rule
+reverse-engineered out of CarbitLink's binary** — the project rule
 about not porting CarbitLink's own crypto does not bite here. It is a
 third-party public credential, sourced and cited independently.
 

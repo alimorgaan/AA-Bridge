@@ -44,12 +44,12 @@ it the same way a real phone would:
   data_check/magic`), `maxData` negotiated from the `CNXN` payload.
   CarAALink's own implementation already matches BLECarbitlink's
   documented header/checksum facts -- no mismatch found when compared
-  directly (chatgpt-status.md, 2026-11-04 external-repo review).
+  directly.
 - Real capture: `CNXN from head unit v=0x1000000 maxdata=16384
   'host::tX9U '`. EIO (`write failed: EIO` / `ENODEV`) on this transport
   is a real, recurring, *unresolved* instability -- confirmed independent
   of app-side encoder choice (toggled hardware vs software H.264, same
-  EIO behavior either way). Not yet root-caused; see `chatgpt-status.md`.
+  EIO behavior either way). Not yet root-caused.
 
 ## Layer 2: ADB streams used
 
@@ -128,8 +128,7 @@ CaptureConfig(width=1920, height=720, wantFps=0, wantEncoder=2,
   (confirmed from a real log, ~9s apart, nothing touched on either end)
   -- CarAALink must not rebuild the encoder/surface on a no-op repeat of
   this message, or it stomps the live buffer queue and looks like a
-  glitch (this was a real, fixed bug -- see `chatgpt-status.md`,
-  round 6).
+  glitch (this was a real, fixed bug).
 - CarAALink replies by opening the Mirror data stream and sending codec
   config (SPS/PPS) immediately before the first real frame.
 
@@ -147,8 +146,7 @@ sent=9899 encoded=4373` -- every request got answered, but **more than
 half of everything sent was a repeat of already-sent data**, not a fresh
 encode, because the encoder was targeting 30fps while the car pulled far
 faster than that. This is the measured, log-confirmed mechanism behind
-the "TV lag / repeats motion" symptom reported this round (see
-`chatgpt-status.md`, 2026-11-06 entry) -- not a corruption bug, a pacing
+the "TV lag / repeats motion" symptom -- not a corruption bug, a pacing
 mismatch. Whether the *real* phone-side CarbitLink app also pulls at
 this rate, or whether a real phone's encoder simply runs faster and
 rarely needs the repeat path, is **UNKNOWN** -- we don't have a capture
