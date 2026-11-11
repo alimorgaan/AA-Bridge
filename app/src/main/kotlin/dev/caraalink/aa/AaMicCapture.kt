@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * `MediaSourceService::onMediaSourceDataReady` loop (read -> send -> read).
  *
  * Routing follows Settings > Android Auto > "Mic / speaker": with
- * `BT_PREFERRED` (default), [AudioSource.VOICE_RECOGNITION] follows
+ * `BT_PREFERRED` or `PHONE_DIRECT` (default), [AudioSource.VOICE_RECOGNITION] follows
  * whatever `AudioManager` currently treats as the active communication
  * device, which is the connected BT headset/car kit's SCO mic when one is
  * present (same as any other app's call audio) and the on-device mic

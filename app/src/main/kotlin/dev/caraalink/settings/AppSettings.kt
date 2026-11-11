@@ -148,10 +148,10 @@ object AppSettings {
         }
 
     fun aaAudioRoute(context: Context): AaAudioRoute =
-        when (prefs(context).getString("aa_audio_route", "bt_preferred")) {
+        when (prefs(context).getString("aa_audio_route", "phone_direct")) {
             "device_only" -> AaAudioRoute.DEVICE_ONLY
-            "phone_direct" -> AaAudioRoute.PHONE_DIRECT
-            else -> AaAudioRoute.BT_PREFERRED
+            "bt_preferred" -> AaAudioRoute.BT_PREFERRED
+            else -> AaAudioRoute.PHONE_DIRECT
         }
 
     fun updateChannel(context: Context): UpdateChannel =

@@ -84,7 +84,7 @@
             android:summary="Which device handles AA voice/media audio in and out"
             android:entries="@array/aa_audio_route_entries"
             android:entryValues="@array/aa_audio_route_values"
-            android:defaultValue="bt_preferred" />
+            android:defaultValue="phone_direct" />
         <SwitchPreferenceCompat
             android:key="aa_auto_crop"
             android:title="Auto-crop to car screen shape"
