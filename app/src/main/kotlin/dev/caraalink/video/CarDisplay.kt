@@ -119,6 +119,9 @@ class CarDisplay(
         ev.recycle()
     }
 
+    /** Draws the current screen again, so a still picture still gives the encoder a fresh frame. */
+    fun redraw() = main.post { presentation?.window?.decorView?.invalidate() }
+
     fun release() = main.post {
         presentation?.dismiss()
         presentation = null

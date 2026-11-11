@@ -210,6 +210,7 @@ class UsbLinkForegroundService : Service() {
 
     private fun beginSession(accessory: UsbAccessory) {
         // Stop a wireless session while link is still WIRELESS, so its ERROR can't stop the service.
+        // It keeps Android Auto running, and the cable session attaches to it (openAndroidAuto).
         if (ConnectionStateHolder.snapshot.link == CarLink.WIRELESS) {
             session?.stop()
             session = null
@@ -360,7 +361,7 @@ class UsbLinkForegroundService : Service() {
         session?.stop()
         session = null
         lateinit var s: CarSession
-        s = CarSession(this, null) { reason -> handler.post { if (session === s) onWirelessSessionEnded(reason) } }
+        s = CarSession(this, null, keepAndroidAuto = true) { reason -> handler.post { if (session === s) onWirelessSessionEnded(reason) } }
         session = s
         s.startWireless()
     }
@@ -557,6 +558,8 @@ class UsbLinkForegroundService : Service() {
         closeWireless(disconnect = true)
         session?.stop()
         session = null
+        // Wireless sessions leave Android Auto running for a handover; the service ending is the last owner.
+        dev.caraalink.aa.AaSessionProbe.active?.stop()
         // Searching phases end with the service; NOT_FOUND, FAILED and WIFI_OFF stay for Home.
         ConnectionStateHolder.update {
             val active = it.wireless == WirelessPhase.SEARCHING || it.wireless == WirelessPhase.CONNECTING || it.wireless == WirelessPhase.RECONNECTING

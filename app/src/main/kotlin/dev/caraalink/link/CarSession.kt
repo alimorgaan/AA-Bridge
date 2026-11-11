@@ -23,6 +23,8 @@ import java.util.ArrayDeque
 class CarSession(
     private val context: Context,
     private val accessory: UsbAccessory?,
+    /** Wireless sessions hand the running Android Auto session to the next car link instead of closing it. */
+    private val keepAndroidAuto: Boolean = false,
     private val onEnded: (String) -> Unit,
 ) : MirrorHost {
 
@@ -109,7 +111,8 @@ class CarSession(
         pollThread = null
         AndroidAutoServer.cancelNeedsTap(context)
         dev.caraalink.aa.AaReconnectBus.onVideoSettingsChanged = null
-        dev.caraalink.aa.AaSessionProbe.active?.stop()
+        // Closing an Android Auto connection mid-handshake wedges its server ("Already connected" later).
+        if (!keepAndroidAuto) dev.caraalink.aa.AaSessionProbe.active?.stop()
         aaDecoder?.stop()
         aaDecoder = null
         android.os.Handler(android.os.Looper.getMainLooper()).post { features.stop() }
@@ -451,6 +454,7 @@ class CarSession(
         logger.log("data stream open; encoded so far=$framesEncoded, requesting keyframe")
         ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.STREAMING) }
         encoder?.requestKeyFrame()
+        display.redraw()
     }
 
     override fun onDataStreamClosed(stream: MirrorStream) {
@@ -485,6 +489,8 @@ class CarSession(
                 if (framesSent == sentBefore && pendingRequests > 0 && dataStream === stream) {
                     pendingRequests--
                     stream.write(MirrorDataChannel.NO_FRAME)
+                    // A still screen gives the encoder nothing, so a waiting car never got a keyframe.
+                    display.redraw()
                 }
             }
         }, ENCODER_STALL_MS)
