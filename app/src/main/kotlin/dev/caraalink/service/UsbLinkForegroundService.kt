@@ -506,7 +506,20 @@ class UsbLinkForegroundService : Service() {
         handler.postDelayed(runnable, delayMs)
     }
 
+    private var cleaningUp = false
+
     private fun stopSelfCleanly() {
+        // The state update below reaches maybeScheduleReconnect, which calls back in here on an ERROR phase.
+        if (cleaningUp) return
+        cleaningUp = true
+        try {
+            cleanUp()
+        } finally {
+            cleaningUp = false
+        }
+    }
+
+    private fun cleanUp() {
         transportReconnectRunnable?.let { handler.removeCallbacks(it) }
         transportReconnectRunnable = null
         closeWireless(disconnect = true)

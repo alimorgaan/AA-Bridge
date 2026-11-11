@@ -22,11 +22,12 @@ import dev.caraalink.settings.AppSettings
 import dev.caraalink.ui.AboutScreen
 import dev.caraalink.ui.HelpScreen
 import dev.caraalink.ui.HomeScreen
+import dev.caraalink.ui.NearbyCarsScreen
 import dev.caraalink.ui.SettingsScreen
 import dev.caraalink.ui.SetupScreen
 import dev.caraalink.ui.theme.AaBridgeTheme
 
-enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT }
+enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT, NEARBY }
 
 /** The phone app: one Compose activity; also where Android sends the car's USB attach. */
 class MainActivity : ComponentActivity() {
@@ -50,17 +51,23 @@ class MainActivity : ComponentActivity() {
             AaBridgeTheme {
                 var screen by rememberSaveable { mutableStateOf(firstScreen) }
                 var fromSettings by rememberSaveable { mutableStateOf(false) }
+                var nearbyFrom by rememberSaveable { mutableStateOf(Screen.HOME) }
                 val back = {
-                    screen = if (fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT)) Screen.SETTINGS else Screen.HOME
+                    screen = when {
+                        screen == Screen.NEARBY -> nearbyFrom
+                        fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT) -> Screen.SETTINGS
+                        else -> Screen.HOME
+                    }
                     if (screen == Screen.HOME) fromSettings = false
                 }
+                val openNearby = { from: Screen -> nearbyFrom = from; screen = Screen.NEARBY }
                 BackHandler(enabled = screen != Screen.HOME && screen != Screen.SETUP) { back() }
                 when (screen) {
-                    Screen.SETUP -> SetupScreen(onDone = { screen = Screen.HOME })
+                    Screen.SETUP -> SetupScreen(onDone = { screen = Screen.HOME }, onOpenNearby = { openNearby(Screen.SETUP) })
                     Screen.HOME -> HomeScreen(
                         onOpenSettings = { screen = Screen.SETTINGS },
                         onOpenHelp = { fromSettings = false; screen = Screen.HELP },
-                        onOpenNearby = {},
+                        onOpenNearby = { openNearby(Screen.HOME) },
                     )
                     Screen.SETTINGS -> SettingsScreen(
                         onBack = back,
@@ -69,6 +76,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Screen.HELP -> HelpScreen(onBack = back, onRunSetup = { fromSettings = false; screen = Screen.SETUP })
                     Screen.ABOUT -> AboutScreen(onBack = back)
+                    Screen.NEARBY -> NearbyCarsScreen(onBack = back, onConnecting = { screen = Screen.HOME })
                 }
             }
         }
@@ -162,7 +170,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         // Opening the app connects to the remembered car; the cable and a running attempt both win.
-        if (dev.caraalink.ui.shouldAutoConnect(dev.caraalink.connection.ConnectionStateHolder.snapshot, AppSettings.wirelessCar(this) != null)) {
+        // Without Nearby devices the scan can only fail; Home's Connect without a cable asks for it instead.
+        val canScan = checkSelfPermission(dev.caraalink.ui.NEARBY_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (canScan && dev.caraalink.ui.shouldAutoConnect(dev.caraalink.connection.ConnectionStateHolder.snapshot, AppSettings.wirelessCar(this) != null)) {
             dev.caraalink.ui.startWireless(this)
         }
     }
