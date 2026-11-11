@@ -6,6 +6,22 @@ AA Bridge brings Android Auto to cars whose screen only supports CarbitLink (als
 
 The app runs on your phone. It starts a local Android Auto session and sends it to the car, over a USB cable or wirelessly over Wi-Fi Direct. Touches on the car screen go back to Android Auto.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/home-searching.png" alt="AA Bridge looking for the car" width="240" />
+  <!-- Still to add from a drive:
+       docs/screenshots/home-connected.png  Home while connected
+       docs/screenshots/nearby-cars.png     Nearby cars listing the car
+       docs/screenshots/car-screen.jpg      photo of the car screen running Android Auto -->
+</p>
+
+## Will it work in my car?
+
+- **Tested:** 2026 Geely Emgrand (Egypt, head unit EC-KY-4350), over cable and wireless. One other CarbitLink head unit over cable.
+- **Likely to work:** cars from Geely, Chery, Jetour, BAIC, JAC, GAC and Proton whose screen has CarbitLink, EasyConnection or a "phone link" app. This list comes from adapter listings and owner guides, not from our own tests.
+- **Tried it in your car?** Open an [issue](../../issues) with the car model and year, the name of the phone-link app on the car screen, cable or wireless, and whether it worked.
+
 ## What you need
 
 - An Android 10 or newer phone with Android Auto
@@ -42,7 +58,6 @@ Plugging in the cable while connected wirelessly switches over without restartin
 
 ## Known limits
 
-- Tested on a 2026 Geely Emgrand (Egypt) and one other CarbitLink head unit so far. Wireless is tested on the Emgrand only.
 - Android Auto's developer mode is not an official feature, so an Android Auto update can break it.
 
 ## Building
