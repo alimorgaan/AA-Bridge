@@ -12,7 +12,7 @@
         <ListPreference
             android:key="video_resolution_mode"
             android:title="Resolution"
-            android:summary="Auto fits the reported panel (720p on the 1920×720 screen); Custom forces your chosen size"
+            android:summary="Match the head unit's reported display, or force a size"
             android:entries="@array/resolution_mode_entries"
             android:entryValues="@array/resolution_mode_values"
             android:defaultValue="auto" />
@@ -68,8 +68,8 @@
             android:summary="Save/load video and AA settings per car (screen shape, resolution, fill mode, etc.)" />
         <SwitchPreferenceCompat
             android:key="video_downscale_720p"
-            android:title="Force 720p"
-            android:summary="Use 720p even when Auto would choose 1080p. Auto already selects 720p for the 1920×720 screen; Custom resolution takes precedence."
+            android:title="Downscale resolution"
+            android:summary="Send AA a 720p frame instead of 1080p -- fewer pixels for the same adaptive bitrate to cover, less blocky. Separate from Custom resolution below."
             android:defaultValue="false" />
         <ListPreference
             android:key="aa_fill_mode"

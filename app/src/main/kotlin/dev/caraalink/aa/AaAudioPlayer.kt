@@ -39,16 +39,6 @@ class AaAudioPlayer(
     private var codec: MediaCodec? = null
     private var track: AudioTrack? = null
     private var trackStarted = false
-    // Confirmed real symptom (owner, 2026-11-06): AA audio is choppy for
-    // about a second at the start of playback, resolving itself if the
-    // owner pauses and lets it "catch up". Matches calling play() on the
-    // very first decoded PCM chunk with nothing else buffered -- the track
-    // starts fully empty and has to race the decoder for every subsequent
-    // chunk until it happens to build a cushion. Holding back a small
-    // prebuffer before the first play() gives it that cushion up front
-    // instead of fighting underrun for the first second of every session.
-    private val prebuffer = java.io.ByteArrayOutputStream()
-    private var prebufferTargetBytes = 0
     private val bufferInfo = MediaCodec.BufferInfo()
     private var lastCsd0: ByteArray? = null
     private val logger = dev.caraalink.diagnostics.DiagnosticLogger(context, "aa-audio")
@@ -180,11 +170,6 @@ class AaAudioPlayer(
         codec = c
         track = t
         trackStarted = false
-        prebuffer.reset()
-        // ~120ms of PCM at this format -- enough cushion to absorb the
-        // decoder's own first-chunk jitter without being long enough to
-        // add a noticeable start-of-playback delay.
-        prebufferTargetBytes = sampleRate * channelCount * 2 * 120 / 1000
     }
 
     @Synchronized
@@ -209,17 +194,10 @@ class AaAudioPlayer(
                     // actually something to play. Starting at setCodecConfig()
                     // time instead left the track spinning empty -- see there.
                     if (!trackStarted) {
-                        prebuffer.write(pcm)
-                        if (prebuffer.size() >= prebufferTargetBytes) {
-                            val buffered = prebuffer.toByteArray()
-                            t.write(buffered, 0, buffered.size)
-                            t.play()
-                            trackStarted = true
-                            prebuffer.reset()
-                        }
-                    } else {
-                        t.write(pcm, 0, pcm.size)
+                        t.play()
+                        trackStarted = true
                     }
+                    t.write(pcm, 0, pcm.size)
                 }
                 c.releaseOutputBuffer(outIndex, false)
                 outIndex = c.dequeueOutputBuffer(bufferInfo, 0)

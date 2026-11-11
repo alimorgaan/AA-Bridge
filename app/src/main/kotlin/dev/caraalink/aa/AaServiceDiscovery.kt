@@ -39,10 +39,9 @@ import dev.caraalink.settings.AppSettings
  * - [AaResolution.R1280X720]  — exact height match, pillarboxed by the car
  * - [AaResolution.R1920X1080] — exact width match, letterboxed; more pixels
  *
- * Auto mode uses a panel-fit tier. On CarbitLink's 1920x720 ultrawide
- * panel that is 1280x720 with a 240px height margin (the same largest
- * mode PhoneAuto offers), rather than spending 2.25x as many active
- * pixels on a 1920x1080 frame. Custom remains an explicit override.
+ * Default is 1920x1080 (matches the car's width, so no horizontal scaling).
+ * Whatever is chosen, the frames arrive at that size and the CarbitLink side
+ * has to place them into 1920x720 rather than assume a 1:1 fit.
  */
 object AaServiceDiscovery {
 
@@ -176,22 +175,15 @@ object AaServiceDiscovery {
             }
         }
         val candidates = AaResolution.values().filter { (it.height > it.width) == portrait }
-        // The explicit 720p switch remains a force-downscale override. In
-        // Auto mode, also choose a 720p tier for a known ultrawide panel:
-        // the 1920x720 CarbitLink panel can use 1280x720 plus a 240px height
-        // margin to produce a 1280x480 content region at the panel's 2.67:1
-        // aspect ratio. This is the largest option PhoneAuto advertises for
-        // that panel. Custom resolution still takes precedence below.
-        val carWidth = if (preview) 0 else dev.caraalink.link.CarScreenInfo.width
-        val carHeight = if (preview) 0 else dev.caraalink.link.CarScreenInfo.height
-        val carAspect = if (carWidth > 0 && carHeight > 0) carWidth.toFloat() / carHeight else 0f
-        val ultrawidePanel = !portrait && carAspect >= ULTRAWIDE_PANEL_ASPECT
-        val defaultRes = when {
-            AppSettings.videoDownscale720p(context) || ultrawidePanel ->
-                if (portrait) AaResolution.R720X1280 else AaResolution.R1280X720
-            portrait -> AaResolution.R1080X1920
-            else -> AaResolution.R1920X1080
-        }
+        // "Downscale resolution" (Settings > Video), separate from Custom
+        // resolution -- Custom is an exact owner-typed WxH; this is a
+        // simpler one-tap "send AA 720p instead of 1080p" for when AA's own
+        // adaptive bitrate is making 1080p blocky. Only changes what the
+        // *default* (non-custom) path resolves to -- Custom resolution
+        // still wins outright below when it's set.
+        val defaultRes = if (AppSettings.videoDownscale720p(context)) {
+            if (portrait) AaResolution.R720X1280 else AaResolution.R1280X720
+        } else if (portrait) AaResolution.R1080X1920 else AaResolution.R1920X1080
         val resolution = if (customWh != null) {
             val (w, h) = customWh
             candidates.minByOrNull { kotlin.math.abs(it.width * it.height - w * h) } ?: defaultRes
@@ -203,6 +195,14 @@ object AaServiceDiscovery {
             defaultRes
         }
         val frameRate = if (AppSettings.frameRate(context) >= 60) FPS_60 else FPS_30
+        // Same principle as Custom resolution above: a manually-set DPI is
+        // still the owner's explicit choice, honoured in preview too --
+        // only the *auto* case gets overridden with the phone's own density.
+        val density = if (preview && AppSettings.videoDpiAuto(context)) {
+            context.resources.displayMetrics.densityDpi
+        } else {
+            AppSettings.videoDpi(context, resolution.width, resolution.height)
+        }
         // Advertise the touchscreen at the CONTENT size, not the full video
         // frame -- confirmed from mrmees/open-android-auto's own docs
         // (docs/video-resolution.md, GPL-3.0, facts only): "Touches in the
@@ -222,42 +222,13 @@ object AaServiceDiscovery {
         // combination double-crops ("fill made it worse"). They're mutually
         // exclusive: FIT relies on the margin for a clean no-letterbox fit;
         // FILL needs the full uncropped frame to crop from itself.
-        // Margins are computed BEFORE density now (used to be after) so the
-        // auto-DPI formula below can see the actual visible content region
-        // instead of the full pre-crop buffer -- see next comment.
         val (widthMargin, heightMargin) = if (AppSettings.aaAutoCrop(context) && AppSettings.aaFillMode(context) == AppSettings.AaFillMode.FIT) {
-            autoMargin(resolution, carWidth, carHeight)
+            autoMargin(resolution, dev.caraalink.link.CarScreenInfo.width, dev.caraalink.link.CarScreenInfo.height)
         } else 0 to 0
-        // Same principle as Custom resolution above: a manually-set DPI is
-        // still the owner's explicit choice, honoured in preview too --
-        // only the *auto* case gets overridden with the phone's own density.
-        //
-        // One reversible change, not yet visually confirmed (see
-        // chatgpt-status.md's "OHA geometry vs. CarAALink's actual
-        // 1920x720 canvas" analysis): videoDpi() used to be called with the
-        // full negotiated resolution.width/height, completely blind to
-        // widthMargin/heightMargin -- it would compute the exact same
-        // density whether the margin was 0 or 240, because the margin
-        // never entered the formula. OHA's own sizing derives density from
-        // the VISIBLE (post-margin) pixel dimensions, not the raw buffer;
-        // this passes the content region (resolution minus margin) instead,
-        // same formula/clamp, now margin-aware. Isolated to this one call's
-        // inputs -- nothing else about the formula, the clamp, or the
-        // manual-DPI override path changed. Given a previously confirmed
-        // (twice, live) density-direction anomaly in this app's real AA
-        // rendering (claude/roadmap.md), do NOT treat this as a confirmed
-        // fix -- compare before/after on the real car screen before
-        // keeping it.
-        val contentWidth = (resolution.width - widthMargin).coerceAtLeast(1)
-        val contentHeight = (resolution.height - heightMargin).coerceAtLeast(1)
-        val density = if (preview && AppSettings.videoDpiAuto(context)) {
-            context.resources.displayMetrics.densityDpi
-        } else {
-            AppSettings.videoDpi(context, contentWidth, contentHeight)
-        }
         return Config(
             resolution = resolution, frameRate = frameRate, density = density,
-            touchWidth = contentWidth, touchHeight = contentHeight,
+            touchWidth = (resolution.width - widthMargin).coerceAtLeast(1),
+            touchHeight = (resolution.height - heightMargin).coerceAtLeast(1),
             widthMargin = widthMargin, heightMargin = heightMargin,
             phoneMediaAudio = AppSettings.aaAudioRoute(context) == AppSettings.AaAudioRoute.PHONE_DIRECT,
         )
@@ -267,21 +238,21 @@ object AaServiceDiscovery {
      * Crops [resolution]'s content area down to the car's real aspect ratio,
      * so AA letterboxes/pillarboxes to the *exact* shape the car wants
      * instead of a generic 16:9. Which axis gets cropped follows directly
-     * from comparing aspect ratios -- that part is just geometry.
-     *
-     * The "total pixels to remove" vs "pixels to remove per side" question
-     * that used to be open here is now CONFIRMED: andreknieriem/open-headunit
-     * (GPL-3.0, real open-source AA head-unit implementation) computes its
-     * own visible canvas as `uiWidth = videoW - marginW` / `uiHeight =
-     * videoH - marginH` (`ProjectionGeometryPolicy.uiWidth/uiHeight`) --
-     * a single total subtraction, not a per-side one. This function's
-     * original assumption was right.
+     * from comparing aspect ratios -- that part is just geometry. What's
+     * NOT confirmed (claude/roadmap.md) is whether AA's `width_margin`/
+     * `height_margin` wire fields mean "total pixels to remove" (this
+     * function's assumption) or "pixels to remove per side" (which would
+     * make the real crop twice as deep as computed here). Wrong in the
+     * worst case means an imperfect crop, never a crash -- this replaces
+     * the old manual "Test height_margin" debug probe now that the
+     * direction/magnitude is at least derived from real numbers instead of
+     * a hand-typed guess, but the per-side-vs-total question is still open.
      */
     fun autoMargin(resolution: AaResolution, carWidth: Int, carHeight: Int): Pair<Int, Int> {
         if (carWidth <= 0 || carHeight <= 0) return 0 to 0
         val carAspect = carWidth.toFloat() / carHeight
         val resAspect = resolution.width.toFloat() / resolution.height
-        val (rawWidthMargin, rawHeightMargin) = when {
+        return when {
             resAspect > carAspect + ASPECT_EPSILON -> {
                 // Video is wider than the car's panel -- crop width.
                 val desiredWidth = (resolution.height * carAspect).toInt()
@@ -294,28 +265,9 @@ object AaServiceDiscovery {
             }
             else -> 0 to 0 // already a near-exact aspect match, nothing to crop
         }
-        // Confirmed real crash (claude/roadmap.md, 2026-11-02, caught by
-        // logcatting gearhead directly): `IllegalArgumentException: Virtual
-        // display width must be positive` in gearhead's own
-        // VirtualDisplayConfig.Builder, built from the width_margin/
-        // height_margin values *we* send. Now that open-headunit confirms
-        // margin is a total (not per-side) subtraction, the only way this
-        // function could still produce a non-positive canvas is a margin
-        // that reaches the *full* dimension -- which only happens at or
-        // past a degenerate panel aspect ratio this function never
-        // actually hits (the car aspect would have to be 0 or infinite).
-        // Kept as a floor anyway, just against MIN_AA_CONTENT_PX now
-        // instead of half the dimension, since a crash here means AA gets
-        // no video at all and the owner's phone can't be logcat'd to
-        // re-diagnose it easily.
-        val maxWidthMargin = (resolution.width - MIN_AA_CONTENT_PX).coerceAtLeast(0)
-        val maxHeightMargin = (resolution.height - MIN_AA_CONTENT_PX).coerceAtLeast(0)
-        return rawWidthMargin.coerceIn(0, maxWidthMargin) to rawHeightMargin.coerceIn(0, maxHeightMargin)
     }
 
     private const val ASPECT_EPSILON = 0.01f
-    private const val ULTRAWIDE_PANEL_ASPECT = 2.5f
-    private const val MIN_AA_CONTENT_PX = 32
 
     /**
      * Serialized `ServiceDiscoveryResponse`. Deliberately minimal: a video

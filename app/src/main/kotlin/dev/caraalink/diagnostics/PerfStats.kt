@@ -46,24 +46,8 @@ object PerfStats {
     @Volatile var mirrorFramesDropped = 0L
     @Volatile var aaReconnects = 0
 
-    // AaVideoDecoder.feed() path, one counter per outcome so a silent
-    // input-buffer miss (previously indistinguishable from a normal
-    // successful decode) is now visible instead of just not happening.
-    // All writes happen from feed()'s single @Synchronized caller, so plain
-    // Long counters are fine -- no concurrent writers to race.
-    @Volatile var aaAccessUnitsReceived = 0L
-    @Volatile var aaSubmitted = 0L
-    @Volatile var aaInputBufferUnavailable = 0L
-    @Volatile var aaDecodeExceptions = 0L
-    @Volatile var aaFramesRendered = 0L
-
     fun recordMirrorFrame(size: Int) = mirror.record(size)
     fun recordAaFrame(size: Int) = aa.record(size)
-    fun recordAaAccessUnit() { aaAccessUnitsReceived++ }
-    fun recordAaSubmitted() { aaSubmitted++ }
-    fun recordAaInputBufferUnavailable() { aaInputBufferUnavailable++ }
-    fun recordAaDecodeException() { aaDecodeExceptions++ }
-    fun recordAaFrameRendered() { aaFramesRendered++ }
 
     fun summary(): String {
         val parts = mutableListOf<String>()
@@ -71,15 +55,8 @@ object PerfStats {
         if (aa.fps > 0) parts += "AA ${aa.fps.toInt()}fps/${aa.kbps.toInt()}kbps"
         if (mirrorFramesDropped > 0) parts += "dropped $mirrorFramesDropped"
         if (aaReconnects > 0) parts += "AA reconnects $aaReconnects"
-        if (aaAccessUnitsReceived > 0) {
-            parts += aaDecodeSummary()
-        }
         return if (parts.isEmpty()) "No active stream" else parts.joinToString("  ")
     }
-
-    fun aaDecodeSummary(): String =
-        "AA decode: recv=$aaAccessUnitsReceived sub=$aaSubmitted " +
-            "miss=$aaInputBufferUnavailable exc=$aaDecodeExceptions rend=$aaFramesRendered"
 
     /**
      * Adds a small translucent HUD to [root] when Settings > Debug >

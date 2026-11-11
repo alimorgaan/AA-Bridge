@@ -123,9 +123,12 @@ object AppSettings {
 
     /**
      * Separate from Custom resolution (which is an exact owner-typed WxH):
-     * force a 720p tier even when the panel-fit Auto policy would otherwise
-     * choose 1080p. Auto already chooses 720p for a known 1920x720 ultrawide
-     * panel. Custom resolution still wins outright when set.
+     * a one-tap "send AA a smaller frame" toggle. AA's own adaptive bitrate
+     * is out of our control (confirmed: no bitrate field in its
+     * VideoConfiguration proto at all -- see AaServiceDiscovery docs), so
+     * the one lever left for blockiness is fewer pixels per frame at the
+     * same bitrate. Only applies to the plain auto-resolution path --
+     * Custom resolution still wins outright when it's set.
      */
     fun videoDownscale720p(context: Context): Boolean =
         prefs(context).getBoolean("video_downscale_720p", false)

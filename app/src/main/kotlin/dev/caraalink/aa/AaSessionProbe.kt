@@ -1,7 +1,6 @@
 package dev.caraalink.aa
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.Log
 import dev.caraalink.diagnostics.DiagnosticLogger
 import java.io.DataInputStream
@@ -9,9 +8,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.security.cert.X509Certificate
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLEngineResult
@@ -61,17 +58,13 @@ class AaSessionProbe(
         // The server can refuse connections for ~20s after Start, so retry well past that.
         val maxAttempts: Int = 8,
         val retryDelayMs: Long = 2_000,
-        /** Maximum delay after repeated failures following an established session. */
-        val maxReconnectDelayMs: Long = 60_000,
-        /** A connection lasting this long resets the post-session failure backoff. */
-        val reconnectBackoffResetAfterMs: Long = 60_000,
         /** True only for the on-phone Car Preview session -- see AaServiceDiscovery.configFromSettings(). */
         val preview: Boolean = false,
     )
 
     companion object {
         private const val TAG = "AaSessionProbe"
-        private const val SHUTDOWN_ACK_TIMEOUT_MS = 1_200L
+        private const val SHUTDOWN_ACK_TIMEOUT_MS = 1_000L
         private const val SENSOR_NIGHT_MODE = 10L
 
         @Volatile
@@ -87,9 +80,7 @@ class AaSessionProbe(
     /** Called when the initial retries ran out without a session (not after stop()). */
     @Volatile
     var onGaveUp: (() -> Unit)? = null
-    @Volatile
     private var socket: Socket? = null
-    @Volatile
     private var worker: Thread? = null
 
     /**
@@ -128,20 +119,16 @@ class AaSessionProbe(
     /** Wall-clock time of the last video DATA frame actually received -- the watchdog's stall signal. */
     @Volatile
     var lastVideoFrameAt: Long = 0L
-    /** True only while an authenticated AA control/media session is active, not during reconnect backoff. */
+        private set
+
+    /** True only while a session is up, not during reconnect waits. */
     @Volatile
     var isConnectionActive: Boolean = false
         private set
-    // Separate from lastVideoFrameAt -- that field gets grace-period bumps
-    // at start() and at other points before any real video has ever
-    // arrived (see its own comments), so it can't by itself distinguish
-    // "still negotiating" from "was healthy, now stalled." This flips once,
-    // at the one place real video data is actually received, and never
-    // resets for this probe's lifetime -- confirmed real gap (ChatGPT
-    // review, 2026-11-04, grounded against a log where the watchdog fired
-    // mid-negotiation and restarted a session that hadn't failed, just
-    // hadn't started yet).
-    @Volatile var hasReceivedVideo: Boolean = false
+
+    /** Set on the first real video frame; separates "still starting" from "stalled". */
+    @Volatile
+    var hasReceivedVideo: Boolean = false
         private set
 
     /** Like setting [videoSink] directly, but also replays cached SPS/PPS + last keyframe if we have them. */
@@ -177,7 +164,7 @@ class AaSessionProbe(
 
     // Set from service discovery; when true the audio channel only carries system sounds.
     private var phoneMediaAudio = false
-    private val shutdownAcked = CountDownLatch(1)
+    private val shutdownAcked = java.util.concurrent.CountDownLatch(1)
 
     @Volatile
     private var micCapture: AaMicCapture? = null
@@ -363,11 +350,7 @@ class AaSessionProbe(
         // (observed: attempt at 16:54:18 answered instantly, the one at
         // 16:55:17 got no reply at all). Retry on a fresh socket rather than
         // reporting a protocol failure that is really a stale-session artefact.
-        // Gearhead logs also show several post-session retries establishing
-        // projection before hitting EOF within seconds. Avoid reopening those
-        // sessions every 2s while Gearhead is still tearing down the prior one.
         var attempt = 0
-        var consecutiveReconnectFailures = 0
         try {
             while (running.get() && (everEstablished || attempt < config.maxAttempts)) {
                 attempt++
@@ -375,27 +358,9 @@ class AaSessionProbe(
                     if (everEstablished) "--- reconnecting (auto-reconnect, session was live before)"
                     else "--- attempt $attempt/${config.maxAttempts}",
                 )
-                val attemptStartedAt = SystemClock.elapsedRealtime()
-                val attemptCompleted = attemptOnce()
+                attemptOnce()
                 if (!running.get()) return
-                var delayMs = config.retryDelayMs
-                if (everEstablished) {
-                    val sessionDurationMs = SystemClock.elapsedRealtime() - attemptStartedAt
-                    if (sessionDurationMs >= config.reconnectBackoffResetAfterMs) {
-                        if (consecutiveReconnectFailures > 0) {
-                            logger.log("AA connection lasted ${sessionDurationMs}ms -- resetting reconnect backoff")
-                        }
-                        consecutiveReconnectFailures = 0
-                    } else if (!attemptCompleted) {
-                        consecutiveReconnectFailures++
-                    }
-                    val multiplier = 1L shl consecutiveReconnectFailures.coerceAtMost(10)
-                    delayMs = (config.retryDelayMs * multiplier).coerceAtMost(config.maxReconnectDelayMs)
-                    if (delayMs > config.retryDelayMs) {
-                        logger.log("post-session reconnect failed $consecutiveReconnectFailures time(s); retrying in ${delayMs}ms")
-                    }
-                    attempt = 0
-                }
+                if (everEstablished) attempt = 0
                 // stop() interrupts this worker thread -- if that lands
                 // while it's sleeping here between retries, Thread.sleep()
                 // throws InterruptedException, which was uncaught anywhere
@@ -404,7 +369,7 @@ class AaSessionProbe(
                 // was mid-retry did exactly this. A stop mid-sleep is just
                 // stop() doing its job, not a real error -- treat it as one.
                 try {
-                    Thread.sleep(delayMs)
+                    Thread.sleep(config.retryDelayMs)
                 } catch (e: InterruptedException) {
                     logger.log("sleep interrupted (stop() requested) -- ending retry loop")
                     return
@@ -417,12 +382,6 @@ class AaSessionProbe(
             runCatching { socket?.close() }
             socket = null
             if (active === this) active = null
-            // This probe owns these executors for its full lifetime. Shut
-            // them down only after its receive loop exits so an in-flight
-            // final frame cannot race shutdown and throw RejectedExecutionException.
-            touchExecutor.shutdownNow()
-            mediaExecutor.shutdownNow()
-            audioExecutor.shutdownNow()
         }
     }
 
@@ -535,7 +494,7 @@ class AaSessionProbe(
                 nightSent = night
                 logger.log("TX SENSOR_EVENT night=$night")
                 val batch = AaProtobuf.Writer().message(10, AaProtobuf.Writer().bool(1, night).build()).build() // night_mode
-                runCatching { channel.sendChannelSpecific(AaServiceDiscovery.CHANNEL_SENSOR, AaFraming.MSG_SENSOR_EVENT_INDICATION, batch) }
+                runCatching { channel.sendChannelSpecific(AaServiceDiscovery.CHANNEL_SENSOR, AaFraming.MSG_SENSOR_EVENT, batch) }
                     .onFailure { logger.log("SENSOR_EVENT send failed: $it") }
             }
             while ((running.get() || draining) && (everEstablished || index < config.maxMessages)) {
@@ -620,29 +579,6 @@ class AaSessionProbe(
                             val focus = AaProtobuf.Writer().int(1, 1).bool(2, false).build()
                             channel.sendChannelSpecific(message.channelId, AaFraming.MSG_MEDIA_VIDEO_FOCUS_NOTIFICATION, focus)
                         }
-                    } else if (chId == AaFraming.MSG_MEDIA_VIDEO_FOCUS_REQUEST) {
-                        // VideoFocusRequest{focus_mode=2, focus_reason=3} --
-                        // phone->HU, previously unhandled (no branch at all
-                        // existed for this message id). Confirmed from
-                        // mrmees/open-android-auto's own docs
-                        // (docs/channels/video.md, GPL-3.0, facts only):
-                        // focus_mode 1=PROJECTED, 2=NATIVE (phone stops
-                        // rendering), 3=NATIVE_TRANSIENT (phone keeps
-                        // rendering, loses input), 4=PROJECTED_NO_INPUT_FOCUS;
-                        // focus_reason 1=PHONE_SCREEN_OFF, 2=LAUNCH_NATIVE,
-                        // 3=LAST_MODE, 4=USER_SELECTION. The doc's own
-                        // sequence examples and sample handler both reply by
-                        // echoing the SAME mode the phone asked for, with
-                        // unrequested=false -- not a fixed response
-                        // regardless of what was requested (that's LIVI's
-                        // shortcut, not the documented behavior).
-                        val fields = AaProtobuf.parse(chBody)
-                        val focusMode = fields.firstOrNull { it.number == 2 }?.varint ?: 1L
-                        val focusReason = fields.firstOrNull { it.number == 3 }?.varint ?: 0L
-                        logger.log("RX VIDEO_FOCUS_REQUEST on ${AaFraming.channelName(message.channelId)} " +
-                            "mode=$focusMode reason=$focusReason")
-                        val indication = AaProtobuf.Writer().int(1, focusMode.toInt()).bool(2, false).build()
-                        channel.sendChannelSpecific(message.channelId, AaFraming.MSG_MEDIA_VIDEO_FOCUS_NOTIFICATION, indication)
                     } else if (chId == AaFraming.MSG_MEDIA_START &&
                         (message.channelId == AaServiceDiscovery.CHANNEL_MEDIA_SINK_VIDEO ||
                             message.channelId == AaServiceDiscovery.CHANNEL_MEDIA_SINK_MEDIA_AUDIO)
@@ -756,31 +692,6 @@ class AaSessionProbe(
                         logger.log("RX SENSOR_MESSAGE_REQUEST on SENSOR type=$sensorType")
                         val response = AaProtobuf.Writer().int(1, 0).build() // status = STATUS_SUCCESS
                         channel.sendChannelSpecific(message.channelId, AaFraming.MSG_SENSOR_RESPONSE, response)
-                        // We ack the subscription but CarbitLink's own wire
-                        // protocol carries no real speed/gear/parking-brake
-                        // data to source an actual driving-status reading
-                        // from -- and we were never sending ANY DrivingStatus
-                        // event at all after acking. Confirmed from the
-                        // owner's live report: AA was *always* in its driving-
-                        // restricted UI mode, never "parked" -- consistent
-                        // with AA failing safe to "assume driving" when a
-                        // subscribed sensor never actually reports in
-                        // (mrmees/open-android-auto's docs/channels/sensor.md,
-                        // GPL-3.0, facts only: SensorEventIndication=32771,
-                        // DrivingStatus is field 13 of that message, status is
-                        // a bitmask where 0=UNRESTRICTED). Push one
-                        // UNRESTRICTED event right after acking the
-                        // subscription -- not a real sensor reading, just the
-                        // one value that stops AA defaulting to fully
-                        // restricted with nothing ever telling it otherwise.
-                        if (sensorType == AaServiceDiscovery.SENSOR_DRIVING_STATUS_DATA.toLong()) {
-                            val drivingStatus = AaProtobuf.Writer().int(1, 0).build() // status = UNRESTRICTED
-                            val event = AaProtobuf.Writer()
-                                .message(AaServiceDiscovery.SENSOR_DRIVING_STATUS_DATA, drivingStatus)
-                                .build()
-                            channel.sendChannelSpecific(message.channelId, AaFraming.MSG_SENSOR_EVENT_INDICATION, event)
-                            logger.log("TX SENSOR_EVENT_INDICATION DrivingStatus=UNRESTRICTED")
-                        }
                         if (sensorType == SENSOR_NIGHT_MODE) {
                             nightSensorStarted = true
                             sendNightIfChanged()

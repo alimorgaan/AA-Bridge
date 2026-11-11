@@ -85,7 +85,7 @@ object AaFraming {
     // SensorMessageId.proto (sensor channel)
     const val MSG_SENSOR_REQUEST = 32769
     const val MSG_SENSOR_RESPONSE = 32770
-    const val MSG_SENSOR_EVENT_INDICATION = 32771
+    const val MSG_SENSOR_EVENT = 32771
 
     // InputMessageId.proto (input channel)
     const val MSG_INPUT_REPORT = 32769
