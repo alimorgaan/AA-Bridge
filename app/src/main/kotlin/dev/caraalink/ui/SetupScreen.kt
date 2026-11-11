@@ -83,7 +83,7 @@ private fun progress(context: Context, serverRunning: Boolean) = SetupProgress(
 )
 
 @Composable
-fun SetupScreen(onDone: () -> Unit) {
+fun SetupScreen(onDone: () -> Unit, onOpenNearby: () -> Unit) {
     val context = LocalContext.current
     var step by remember { mutableIntStateOf(progress(context, serverRunning = false).currentStep()) }
     var requested by rememberSaveable { mutableStateOf(false) }
@@ -147,7 +147,9 @@ fun SetupScreen(onDone: () -> Unit) {
                         Button(onClick = { AndroidAutoServer.openSettings(context) }) { Text(stringResource(R.string.open_aa)) }
                     }
                 }
-                StepCard(4, step, R.string.setup_car_title, R.string.setup_car_body, action = null)
+                StepCard(4, step, R.string.setup_car_title, R.string.setup_car_body) {
+                    TextButton(onClick = onOpenNearby) { Text(stringResource(R.string.home_connect_wireless)) }
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }

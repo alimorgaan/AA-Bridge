@@ -22,7 +22,13 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import dev.caraalink.settings.AppSettings
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
@@ -55,6 +61,7 @@ fun SubScreen(title: String, onBack: () -> Unit, content: @Composable ColumnScop
 fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) {
     val context = LocalContext.current
     SubScreen(stringResource(R.string.settings), onBack) {
+        WirelessCarRow()
         SettingsRow(rememberVectorPainter(Icons.Rounded.Refresh), stringResource(R.string.settings_updates)) {
             UpdateChecker.checkNow(context, manual = true)
         }
@@ -64,6 +71,26 @@ fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) 
             context.startActivity(Intent(context, SettingsActivity::class.java))
         }
     }
+}
+
+/** The remembered car, with Forget; hidden when there is none. */
+@Composable
+private fun WirelessCarRow() {
+    val context = LocalContext.current
+    var car by remember { mutableStateOf(AppSettings.wirelessCar(context)) }
+    val name = car?.name ?: return
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_wireless_car), style = MaterialTheme.typography.bodyLarge) },
+        supportingContent = { Text(name) },
+        leadingContent = { Icon(painterResource(R.drawable.ic_car), contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        trailingContent = {
+            TextButton(onClick = {
+                AppSettings.setWirelessCar(context, null)
+                car = null
+            }) { Text(stringResource(R.string.settings_forget)) }
+        },
+        modifier = Modifier.padding(horizontal = 8.dp),
+    )
 }
 
 @Composable
