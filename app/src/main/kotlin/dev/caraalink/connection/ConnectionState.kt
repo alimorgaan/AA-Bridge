@@ -1,5 +1,7 @@
 package dev.caraalink.connection
 
+import dev.caraalink.wireless.NearbyDevice
+
 /**
  * Lifecycle state of the USB link to the head unit. Shared between the
  * foreground service, the connection-diagnostics screen, and the USB
@@ -14,6 +16,11 @@ enum class ConnectionPhase {
     ERROR,
 }
 
+enum class CarLink { NONE, CABLE, WIRELESS }
+
+/** Wireless progress for Home; IDLE once connected or when nothing is happening. */
+enum class WirelessPhase { IDLE, SEARCHING, CONNECTING, NOT_FOUND, FAILED, RECONNECTING, WIFI_OFF }
+
 data class ConnectionSnapshot(
     val phase: ConnectionPhase = ConnectionPhase.DISCONNECTED,
     val accessoryManufacturer: String? = null,
@@ -23,6 +30,10 @@ data class ConnectionSnapshot(
     val lastError: String? = null,
     val reconnectAttempts: Int = 0,
     val carName: String? = null,
+    val link: CarLink = CarLink.NONE,
+    val wireless: WirelessPhase = WirelessPhase.IDLE,
+    /** A device with the remembered car's name but another address, offered as a one-tap choice. */
+    val suggestion: NearbyDevice? = null,
 )
 
 /**

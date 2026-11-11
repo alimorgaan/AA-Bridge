@@ -62,4 +62,7 @@
     <string name="fgs_connected">Connected to your car</string>
     <string name="fgs_problem">Connection problem, trying again…</string>
     <string name="fgs_stop">Stop</string>
+    <string name="fgs_connected_wireless">Connected wirelessly to %1$s</string>
+    <string name="fgs_reconnecting_wireless">Reconnecting to %1$s…</string>
+    <string name="wireless_open_to_reconnect">Open AA Bridge to reconnect to %1$s</string>
 </resources>

@@ -1,5 +1,6 @@
 package dev.caraalink.settings
 
+import dev.caraalink.wireless.RememberedCar
 import android.content.Context
 import androidx.preference.PreferenceManager
 
@@ -27,6 +28,15 @@ object AppSettings {
     fun setDevModeConfirmed(context: Context, value: Boolean) = prefs(context).edit().putBoolean("dev_mode_confirmed", value).apply()
     fun carConnectedOnce(context: Context): Boolean = prefs(context).getBoolean("car_connected_once", false)
     fun setCarConnectedOnce(context: Context) = prefs(context).edit().putBoolean("car_connected_once", true).apply()
+
+    fun wirelessCar(context: Context): RememberedCar? {
+        val p = prefs(context)
+        val address = p.getString("wireless_car_address", null) ?: return null
+        return RememberedCar(p.getString("wireless_car_name", null) ?: address, address)
+    }
+
+    fun setWirelessCar(context: Context, car: RememberedCar?) = prefs(context).edit()
+        .putString("wireless_car_name", car?.name).putString("wireless_car_address", car?.address).apply()
 
     fun resolutionMode(context: Context): ResolutionMode =
         when (prefs(context).getString("video_resolution_mode", "auto")) {

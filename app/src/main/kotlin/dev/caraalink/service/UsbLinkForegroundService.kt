@@ -26,7 +26,18 @@ import dev.caraalink.connection.ConnectionSnapshot
 import dev.caraalink.connection.ConnectionStateHolder
 import dev.caraalink.R
 import dev.caraalink.settings.AppSettings
+import dev.caraalink.connection.CarLink
+import dev.caraalink.connection.WirelessPhase
 import dev.caraalink.diagnostics.AdbHandshakeProbe
+import dev.caraalink.diagnostics.DiagnosticLogger
+import dev.caraalink.link.SocketTransport
+import dev.caraalink.wireless.CarHello
+import dev.caraalink.wireless.CarMatch
+import dev.caraalink.wireless.NearbyDevice
+import dev.caraalink.wireless.RememberedCar
+import dev.caraalink.wireless.WirelessLink
+import dev.caraalink.wireless.findCar
+import java.net.InetAddress
 import dev.caraalink.diagnostics.UsbSnifferDiagnostic
 
 /**
@@ -64,9 +75,20 @@ class UsbLinkForegroundService : Service() {
     private var transportReconnectRunnable: Runnable? = null
     private var stopping = false
 
+    private val wirelessLog by lazy { DiagnosticLogger(this, "wireless") }
+    private var wirelessLink: WirelessLink? = null
+    private var wirelessTarget: RememberedCar? = null
+    private var connectingTo: String? = null
+    private var carHost: Pair<String, InetAddress?>? = null
+    private var wirelessStreamed = false
+    private var wirelessTimeout: Runnable? = null
+
     private val stateListener: (ConnectionSnapshot) -> Unit = {
         updateNotification(it)
         // A reconnect that streams again refills the budget; a dead link never streams, so it still gives up.
+        if (it.phase == ConnectionPhase.STREAMING && it.link == CarLink.WIRELESS && it.wireless != WirelessPhase.IDLE) {
+            handler.post { onWirelessStreaming() }
+        }
         if (it.phase == ConnectionPhase.STREAMING) {
             handler.post { transportReconnectAttempts = 0 }
             AppSettings.setCarConnectedOnce(this)
@@ -110,6 +132,12 @@ class UsbLinkForegroundService : Service() {
             ACTION_START_SNIFFER -> handleStart(intent) { accessory -> beginSniffing(accessory) }
             ACTION_START_ADB_PROBE -> handleStart(intent) { accessory -> beginAdbProbe(accessory) }
             ACTION_START_SESSION -> handleStart(intent) { accessory -> beginSession(accessory) }
+            ACTION_START_WIRELESS -> {
+                val address = intent.getStringExtra(EXTRA_CAR_ADDRESS)
+                val target = address?.let { RememberedCar(intent.getStringExtra(EXTRA_CAR_NAME) ?: it, it) }
+                    ?: AppSettings.wirelessCar(this)
+                beginWireless(target)
+            }
             ACTION_STOP -> {
                 Log.i(TAG, "onStartCommand: ACTION_STOP")
                 stopping = true
@@ -127,6 +155,9 @@ class UsbLinkForegroundService : Service() {
         }
         Log.i(TAG, "handleStart: ${intent.action} with accessory=${accessory.manufacturer}/${accessory.model}")
         pendingAccessory = accessory
+        // The cable wins: drop any wireless search or session before the cable session starts.
+        closeWireless(disconnect = true)
+        ConnectionStateHolder.update { it.copy(link = CarLink.CABLE, wireless = WirelessPhase.IDLE, suggestion = null) }
         detachStopRunnable?.let { handler.removeCallbacks(it) }
         detachStopRunnable = null
         // A fresh connect request from outside (user action, accessory
@@ -216,6 +247,7 @@ class UsbLinkForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        closeWireless(disconnect = true)
         session?.stop()
         session = null
         ConnectionStateHolder.removeListener(stateListener)
@@ -257,7 +289,8 @@ class UsbLinkForegroundService : Service() {
      * reseat" grace period off the actual USB detach event instead.
      */
     private fun maybeScheduleReconnect(snapshot: ConnectionSnapshot) {
-        if (snapshot.phase != ConnectionPhase.ERROR) return
+        // Wireless runs its own reconnect window; see onWirelessSessionEnded.
+        if (snapshot.phase != ConnectionPhase.ERROR || snapshot.link == CarLink.WIRELESS) return
         stopSelfCleanly()
     }
 
@@ -265,20 +298,190 @@ class UsbLinkForegroundService : Service() {
      * Android 14 refuses a microphone-typed start from the background (transport reconnects run there),
      * so fall back to connectedDevice alone rather than failing the session.
      */
-    private fun startForegroundWithMic() {
+    private fun startForegroundWithMic(wireless: Boolean = false) {
         val notification = buildNotification(ConnectionStateHolder.snapshot)
         val micGranted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        // Wi-Fi Direct scans count as location access up to Android 12, so a reconnect mid-drive needs this type.
+        val location = if (wireless && needsLocationForWifiDirect() && hasFineLocation()) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
         // The microphone type only exists from Android 11; on 10 it's an undeclared type and throws.
         if (micGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 startForeground(NOTIFICATION_ID, notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or location)
                 return
             } catch (e: SecurityException) {
                 Log.w(TAG, "startForeground with microphone refused -- retrying connectedDevice only", e)
             }
         }
-        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or location)
+    }
+
+    private fun needsLocationForWifiDirect() = Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
+
+    private fun hasFineLocation() =
+        checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    // --- wireless ---
+
+    private fun beginWireless(target: RememberedCar?) {
+        // startForegroundService needs startForeground even when there turns out to be nothing to do.
+        startForegroundWithMic(wireless = true)
+        if (target == null || ConnectionStateHolder.snapshot.link == CarLink.CABLE) {
+            wirelessLog.log("start wireless ignored: ${if (target == null) "no car" else "cable session active"}")
+            if (session == null) stopSelfCleanly()
+            return
+        }
+        wirelessLog.log("start wireless: looking for '${target.name}' ${target.address}")
+        stopping = false
+        acquireWakeLock()
+        closeWireless(disconnect = false)
+        wirelessTarget = target
+        wirelessStreamed = false
+        ConnectionStateHolder.update {
+            it.copy(link = CarLink.WIRELESS, wireless = WirelessPhase.SEARCHING, suggestion = null, phase = ConnectionPhase.DISCONNECTED)
+        }
+        startWirelessSession()
+        wirelessLink = WirelessLink(this, wirelessLog, wirelessListener).also { it.scan() }
+        armWirelessTimeout(SEARCH_TIMEOUT_MS) { endWireless(WirelessPhase.NOT_FOUND) }
+    }
+
+    private fun startWirelessSession() {
+        session?.stop()
+        session = null
+        lateinit var s: CarSession
+        s = CarSession(this, null) { reason -> handler.post { if (session === s) onWirelessSessionEnded(reason) } }
+        session = s
+        s.startWireless()
+    }
+
+    private val wirelessListener = object : WirelessLink.Listener {
+        override fun onPeers(peers: List<NearbyDevice>) {
+            val target = wirelessTarget ?: return
+            if (connectingTo != null || carHost != null) return
+            when (val match = findCar(peers, target)) {
+                is CarMatch.Found -> {
+                    connectingTo = match.device.address
+                    wirelessTarget = target.copy(name = match.device.name)
+                    ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.CONNECTING, suggestion = null) }
+                    wirelessLink?.connect(match.device.address)
+                    armWirelessTimeout(CONNECT_TIMEOUT_MS) { endWireless(WirelessPhase.FAILED) }
+                }
+                is CarMatch.SameName -> ConnectionStateHolder.update { it.copy(suggestion = match.device) }
+                CarMatch.None -> {}
+            }
+        }
+
+        override fun onCarReachable(host: String, local: InetAddress?) {
+            carHost = host to local
+            if (ConnectionStateHolder.snapshot.wireless == WirelessPhase.SEARCHING) {
+                ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.CONNECTING) }
+                armWirelessTimeout(CONNECT_TIMEOUT_MS) { endWireless(WirelessPhase.FAILED) }
+            }
+            sendHello(host, local)
+        }
+
+        override fun onGroupLost() {
+            carHost = null
+            connectingTo = null
+            if (stopping || wirelessTarget == null) return
+            if (!wirelessStreamed) {
+                wirelessLink?.scan()
+                return
+            }
+            if (needsLocationForWifiDirect() && !hasFineLocation()) {
+                notifyOpenToReconnect()
+                endWireless(WirelessPhase.IDLE)
+                return
+            }
+            wirelessLog.log("link lost -- reconnecting for up to ${RECONNECT_WINDOW_MS / 1000}s")
+            ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.RECONNECTING) }
+            startWirelessSession()
+            wirelessLink?.scan()
+            armWirelessTimeout(RECONNECT_WINDOW_MS) { endWireless(WirelessPhase.IDLE) }
+        }
+
+        override fun onWifiOff() = endWireless(WirelessPhase.WIFI_OFF)
+    }
+
+    /** Our own name first; CarbitLink's only if the car hasn't connected back within 3 s. */
+    private fun sendHello(host: String, local: InetAddress?) {
+        Thread({
+            val before = SocketTransport.accepted
+            for ((label, pkg) in listOf("own" to packageName, "carbitlink" to CarHello.CARBITLINK_PACKAGE)) {
+                val answered = CarHello.send(host, local, pkg)
+                val until = android.os.SystemClock.elapsedRealtime() + HELLO_WAIT_MS
+                while (SocketTransport.accepted == before && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(100)
+                if (SocketTransport.accepted > before) {
+                    wirelessLog.log("hello answered: $label (reply=$answered)")
+                    return@Thread
+                }
+                wirelessLog.log("hello as $label: no connect-back (reply=$answered)")
+            }
+            handler.post { if (carHost?.first == host) endWireless(WirelessPhase.FAILED) }
+        }, "car-hello").start()
+    }
+
+    private fun onWirelessStreaming() {
+        val target = wirelessTarget ?: return
+        cancelWirelessTimeout()
+        wirelessStreamed = true
+        AppSettings.setWirelessCar(this, target)
+        ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.IDLE, suggestion = null) }
+        wirelessLog.log("streaming to '${target.name}' -- remembered")
+    }
+
+    /** The car closed its connections; a group that is still up gets a fresh session and one more hello. */
+    private fun onWirelessSessionEnded(reason: String) {
+        session = null
+        if (stopping || wirelessLink == null) return
+        wirelessLog.log("wireless session ended: $reason")
+        val host = carHost ?: return
+        startWirelessSession()
+        sendHello(host.first, host.second)
+    }
+
+    private fun endWireless(phase: WirelessPhase) {
+        wirelessLog.log("wireless ended: $phase")
+        ConnectionStateHolder.update { it.copy(wireless = phase) }
+        stopping = true
+        stopSelfCleanly()
+    }
+
+    private fun closeWireless(disconnect: Boolean) {
+        cancelWirelessTimeout()
+        wirelessLink?.let {
+            if (disconnect) it.disconnect()
+            it.close()
+        }
+        wirelessLink = null
+        wirelessTarget = null
+        connectingTo = null
+        carHost = null
+    }
+
+    private fun armWirelessTimeout(ms: Long, onTimeout: () -> Unit) {
+        cancelWirelessTimeout()
+        val r = Runnable { wirelessTimeout = null; onTimeout() }
+        wirelessTimeout = r
+        handler.postDelayed(r, ms)
+    }
+
+    private fun cancelWirelessTimeout() {
+        wirelessTimeout?.let { handler.removeCallbacks(it) }
+        wirelessTimeout = null
+    }
+
+    private fun notifyOpenToReconnect() {
+        val name = wirelessTarget?.name ?: return
+        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val n = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_bridge)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.wireless_open_to_reconnect, name))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { getSystemService(NotificationManager::class.java).notify(OPEN_TO_RECONNECT_ID, n) }
     }
 
     /** Transport-level read/write failure, as opposed to a clean close or a real unplug. */
@@ -306,8 +509,14 @@ class UsbLinkForegroundService : Service() {
     private fun stopSelfCleanly() {
         transportReconnectRunnable?.let { handler.removeCallbacks(it) }
         transportReconnectRunnable = null
+        closeWireless(disconnect = true)
         session?.stop()
         session = null
+        // Searching phases end with the service; NOT_FOUND, FAILED and WIFI_OFF stay for Home.
+        ConnectionStateHolder.update {
+            val active = it.wireless == WirelessPhase.SEARCHING || it.wireless == WirelessPhase.CONNECTING || it.wireless == WirelessPhase.RECONNECTING
+            it.copy(link = CarLink.NONE, wireless = if (active) WirelessPhase.IDLE else it.wireless)
+        }
         sniffer?.stop()
         adbProbe?.stop()
         adbProbe = null
@@ -355,11 +564,13 @@ class UsbLinkForegroundService : Service() {
         )
 
         // Drivers see this on every drive, so plain words; the raw error stays in the logs.
-        val statusText = when (snapshot.phase) {
-            ConnectionPhase.STREAMING -> getString(R.string.fgs_connected)
-            ConnectionPhase.ERROR -> getString(R.string.fgs_problem)
-            ConnectionPhase.SNIFFING -> "Diagnostic sniffer running (${snapshot.bytesRead} bytes)"
-            else -> getString(R.string.fgs_connecting)
+        val carName = wirelessTarget?.name ?: snapshot.carName ?: ""
+        val statusText = when {
+            snapshot.link == CarLink.WIRELESS && snapshot.wireless == WirelessPhase.RECONNECTING ->
+                getString(R.string.fgs_reconnecting_wireless, carName)
+            snapshot.link == CarLink.WIRELESS && snapshot.phase == ConnectionPhase.STREAMING ->
+                getString(R.string.fgs_connected_wireless, carName)
+            else -> cableStatus(snapshot)
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -372,16 +583,31 @@ class UsbLinkForegroundService : Service() {
             .build()
     }
 
+    private fun cableStatus(snapshot: ConnectionSnapshot): String = when (snapshot.phase) {
+        ConnectionPhase.STREAMING -> getString(R.string.fgs_connected)
+        ConnectionPhase.ERROR -> getString(R.string.fgs_problem)
+        ConnectionPhase.SNIFFING -> "Diagnostic sniffer running (${snapshot.bytesRead} bytes)"
+        else -> getString(R.string.fgs_connecting)
+    }
+
     companion object {
         private const val TAG = "UsbLinkForegroundService"
         private const val CHANNEL_ID = "usb_link"
         private const val NOTIFICATION_ID = 1
         private const val MAX_TRANSPORT_RECONNECT_ATTEMPTS = 4
         private const val TRANSPORT_RECONNECT_BASE_DELAY_MS = 2_000L
+        private const val OPEN_TO_RECONNECT_ID = 4
+        private const val SEARCH_TIMEOUT_MS = 30_000L
+        private const val CONNECT_TIMEOUT_MS = 30_000L
+        private const val RECONNECT_WINDOW_MS = 120_000L
+        private const val HELLO_WAIT_MS = 3_000L
 
         const val ACTION_START_SNIFFER = "dev.caraalink.service.action.START_SNIFFER"
         const val ACTION_START_ADB_PROBE = "dev.caraalink.service.action.START_ADB_PROBE"
         const val ACTION_STOP = "dev.caraalink.service.action.STOP"
         const val ACTION_START_SESSION = "dev.caraalink.service.action.START_SESSION"
+        const val ACTION_START_WIRELESS = "dev.caraalink.service.action.START_WIRELESS"
+        const val EXTRA_CAR_ADDRESS = "car_address"
+        const val EXTRA_CAR_NAME = "car_name"
     }
 }

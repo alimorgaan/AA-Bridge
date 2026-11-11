@@ -57,4 +57,7 @@
     <string name="fgs_connected">متصل بسيارتك</string>
     <string name="fgs_problem">مشكلة في الاتصال، جارٍ إعادة المحاولة…</string>
     <string name="fgs_stop">إيقاف</string>
+    <string name="fgs_connected_wireless">متصل لاسلكيًا بـ %1$s</string>
+    <string name="fgs_reconnecting_wireless">جارٍ إعادة الاتصال بـ %1$s…</string>
+    <string name="wireless_open_to_reconnect">افتح AA Bridge لإعادة الاتصال بـ %1$s</string>
 </resources>
