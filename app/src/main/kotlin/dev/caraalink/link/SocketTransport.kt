@@ -60,6 +60,12 @@ class SocketTransport(
     private fun acceptLoop(server: ServerSocket, port: Int) {
         while (running.get()) {
             val socket = try { server.accept() } catch (e: IOException) { break }
+            val iface = runCatching { java.net.NetworkInterface.getByInetAddress(socket.localAddress)?.name }.getOrNull()
+            if (!acceptsInterface(iface)) {
+                logger.log("refused tcp:$port from ${socket.remoteSocketAddress} on $iface")
+                runCatching { socket.close() }
+                continue
+            }
             socket.tcpNoDelay = true
             val handler = handlerFor("tcp:$port")
             logger.log("car connected to tcp:$port from ${socket.remoteSocketAddress}")
@@ -140,6 +146,9 @@ class SocketTransport(
     }
 
     companion object {
+        /** The car only reaches us over Wi-Fi Direct; anyone on the phone's other networks is refused. */
+        internal fun acceptsInterface(name: String?): Boolean = name?.startsWith("p2p") == true
+
         const val PXC_PORT = 10922
         val PORTS = listOf(PXC_PORT, 10921, 10920)
 

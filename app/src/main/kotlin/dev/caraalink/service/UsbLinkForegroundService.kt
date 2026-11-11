@@ -82,6 +82,7 @@ class UsbLinkForegroundService : Service() {
     private var carHost: Pair<String, InetAddress?>? = null
     private var wirelessStreamed = false
     private var wirelessTimeout: Runnable? = null
+    private var reconnectUntil = 0L
 
     private val stateListener: (ConnectionSnapshot) -> Unit = {
         updateNotification(it)
@@ -155,9 +156,8 @@ class UsbLinkForegroundService : Service() {
         }
         Log.i(TAG, "handleStart: ${intent.action} with accessory=${accessory.manufacturer}/${accessory.model}")
         pendingAccessory = accessory
-        // The cable wins: drop any wireless search or session before the cable session starts.
+        // The cable wins: drop any wireless search before the cable session starts.
         closeWireless(disconnect = true)
-        ConnectionStateHolder.update { it.copy(link = CarLink.CABLE, wireless = WirelessPhase.IDLE, suggestion = null) }
         detachStopRunnable?.let { handler.removeCallbacks(it) }
         detachStopRunnable = null
         // A fresh connect request from outside (user action, accessory
@@ -209,6 +209,12 @@ class UsbLinkForegroundService : Service() {
     }
 
     private fun beginSession(accessory: UsbAccessory) {
+        // Stop a wireless session while link is still WIRELESS, so its ERROR can't stop the service.
+        if (ConnectionStateHolder.snapshot.link == CarLink.WIRELESS) {
+            session?.stop()
+            session = null
+        }
+        ConnectionStateHolder.update { it.copy(link = CarLink.CABLE, wireless = WirelessPhase.IDLE, suggestion = null) }
         Log.i(TAG, "beginSession: ${accessory.manufacturer}/${accessory.model}")
         sniffer?.stop()
         adbProbe?.stop()
@@ -288,9 +294,13 @@ class UsbLinkForegroundService : Service() {
      * [detachReceiver] handles the real "give it 30s in case it's a brief
      * reseat" grace period off the actual USB detach event instead.
      */
+    private var lastPhase: ConnectionPhase? = null
+
     private fun maybeScheduleReconnect(snapshot: ConnectionSnapshot) {
+        val previous = lastPhase
+        lastPhase = snapshot.phase
         // Wireless runs its own reconnect window; see onWirelessSessionEnded.
-        if (snapshot.phase != ConnectionPhase.ERROR || snapshot.link == CarLink.WIRELESS) return
+        if (!shouldStopOnError(previous, snapshot)) return
         stopSelfCleanly()
     }
 
@@ -338,7 +348,8 @@ class UsbLinkForegroundService : Service() {
         wirelessTarget = target
         wirelessStreamed = false
         ConnectionStateHolder.update {
-            it.copy(link = CarLink.WIRELESS, wireless = WirelessPhase.SEARCHING, suggestion = null, phase = ConnectionPhase.DISCONNECTED)
+            it.copy(link = CarLink.WIRELESS, wireless = WirelessPhase.SEARCHING, suggestion = null,
+                phase = ConnectionPhase.DISCONNECTED, target = target)
         }
         startWirelessSession()
         wirelessLink = WirelessLink(this, wirelessLog, wirelessListener).also { it.scan() }
@@ -361,10 +372,14 @@ class UsbLinkForegroundService : Service() {
             when (val match = findCar(peers, target)) {
                 is CarMatch.Found -> {
                     connectingTo = match.device.address
-                    wirelessTarget = target.copy(name = match.device.name)
-                    ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.CONNECTING, suggestion = null) }
+                    val found = target.copy(name = match.device.name)
+                    wirelessTarget = found
+                    val reconnecting = reconnectUntil > 0
+                    ConnectionStateHolder.update {
+                        it.copy(wireless = if (reconnecting) WirelessPhase.RECONNECTING else WirelessPhase.CONNECTING, suggestion = null, target = found)
+                    }
                     wirelessLink?.connect(match.device.address)
-                    armWirelessTimeout(CONNECT_TIMEOUT_MS) { endWireless(WirelessPhase.FAILED) }
+                    if (!reconnecting) armWirelessTimeout(CONNECT_TIMEOUT_MS) { onAttemptFailed() }
                 }
                 is CarMatch.SameName -> ConnectionStateHolder.update { it.copy(suggestion = match.device) }
                 CarMatch.None -> {}
@@ -375,7 +390,7 @@ class UsbLinkForegroundService : Service() {
             carHost = host to local
             if (ConnectionStateHolder.snapshot.wireless == WirelessPhase.SEARCHING) {
                 ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.CONNECTING) }
-                armWirelessTimeout(CONNECT_TIMEOUT_MS) { endWireless(WirelessPhase.FAILED) }
+                armWirelessTimeout(CONNECT_TIMEOUT_MS) { onAttemptFailed() }
             }
             sendHello(host, local)
         }
@@ -394,6 +409,7 @@ class UsbLinkForegroundService : Service() {
                 return
             }
             wirelessLog.log("link lost -- reconnecting for up to ${RECONNECT_WINDOW_MS / 1000}s")
+            reconnectUntil = android.os.SystemClock.elapsedRealtime() + RECONNECT_WINDOW_MS
             ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.RECONNECTING) }
             startWirelessSession()
             wirelessLink?.scan()
@@ -417,13 +433,28 @@ class UsbLinkForegroundService : Service() {
                 }
                 wirelessLog.log("hello as $label: no connect-back (reply=$answered)")
             }
-            handler.post { if (carHost?.first == host) endWireless(WirelessPhase.FAILED) }
+            handler.post { if (carHost?.first == host) onAttemptFailed() }
         }, "car-hello").start()
+    }
+
+    /** Gives up, or inside the reconnect window drops the attempt and scans again. */
+    private fun onAttemptFailed() {
+        val phase = afterFailedAttempt(reconnectUntil, android.os.SystemClock.elapsedRealtime())
+        if (phase != null) {
+            endWireless(phase)
+            return
+        }
+        wirelessLog.log("attempt failed -- scanning again inside the reconnect window")
+        connectingTo = null
+        carHost = null
+        wirelessLink?.disconnect()
+        wirelessLink?.scan()
     }
 
     private fun onWirelessStreaming() {
         val target = wirelessTarget ?: return
         cancelWirelessTimeout()
+        reconnectUntil = 0L
         wirelessStreamed = true
         AppSettings.setWirelessCar(this, target)
         ConnectionStateHolder.update { it.copy(wireless = WirelessPhase.IDLE, suggestion = null) }
@@ -457,6 +488,7 @@ class UsbLinkForegroundService : Service() {
         wirelessTarget = null
         connectingTo = null
         carHost = null
+        reconnectUntil = 0L
     }
 
     private fun armWirelessTimeout(ms: Long, onTimeout: () -> Unit) {
@@ -509,7 +541,7 @@ class UsbLinkForegroundService : Service() {
     private var cleaningUp = false
 
     private fun stopSelfCleanly() {
-        // The state update below reaches maybeScheduleReconnect, which calls back in here on an ERROR phase.
+        // A session stopped in here reports ERROR, which reaches maybeScheduleReconnect and calls back in.
         if (cleaningUp) return
         cleaningUp = true
         try {
@@ -619,6 +651,14 @@ class UsbLinkForegroundService : Service() {
         const val ACTION_START_ADB_PROBE = "dev.caraalink.service.action.START_ADB_PROBE"
         const val ACTION_STOP = "dev.caraalink.service.action.STOP"
         const val ACTION_START_SESSION = "dev.caraalink.service.action.START_SESSION"
+        /** A session that just failed stops the service; a leftover ERROR seen by a later update must not. */
+        internal fun shouldStopOnError(previous: ConnectionPhase?, snapshot: ConnectionSnapshot): Boolean =
+            snapshot.phase == ConnectionPhase.ERROR && previous != ConnectionPhase.ERROR && snapshot.link != CarLink.WIRELESS
+
+        /** Null keeps trying: inside the mid-drive window a failed attempt goes back to scanning. */
+        internal fun afterFailedAttempt(reconnectUntil: Long, now: Long): WirelessPhase? =
+            if (now < reconnectUntil) null else WirelessPhase.FAILED
+
         const val ACTION_START_WIRELESS = "dev.caraalink.service.action.START_WIRELESS"
         const val EXTRA_CAR_ADDRESS = "car_address"
         const val EXTRA_CAR_NAME = "car_name"

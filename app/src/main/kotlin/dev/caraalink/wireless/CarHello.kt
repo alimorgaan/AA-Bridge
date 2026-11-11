@@ -26,21 +26,26 @@ object CarHello {
     fun answerCommand(reply: ByteArray, length: Int): Int? =
         if (length < 16) null else ByteBuffer.wrap(reply, 0, 16).order(ByteOrder.LITTLE_ENDIAN).getInt(0)
 
-    /** True when the car answered with [ANSWER]; retries a refused connection 10 times, 1 s apart. */
-    fun send(host: String, local: InetAddress?, packageName: String): Boolean {
+    /** True when the car answered with [ANSWER]. Retries only a failed connect, 10 times 1 s apart, so a silent car fails fast. */
+    fun send(host: String, local: InetAddress?, packageName: String, port: Int = PORT): Boolean {
         val packet = packet(packageName)
         repeat(10) {
+            val s = Socket()
             try {
-                Socket().use { s ->
-                    if (local != null) s.bind(InetSocketAddress(local, 0))
-                    s.connect(InetSocketAddress(host, PORT), 3000)
-                    s.soTimeout = 5000
-                    s.getOutputStream().write(packet)
-                    val reply = ByteArray(4096)
-                    return answerCommand(reply, s.getInputStream().read(reply)) == ANSWER
-                }
+                if (local != null) s.bind(InetSocketAddress(local, 0))
+                s.connect(InetSocketAddress(host, port), 3000)
             } catch (e: IOException) {
+                runCatching { s.close() }
                 Thread.sleep(1000)
+                return@repeat
+            }
+            return s.use {
+                runCatching {
+                    it.soTimeout = 5000
+                    it.getOutputStream().write(packet)
+                    val reply = ByteArray(4096)
+                    answerCommand(reply, it.getInputStream().read(reply)) == ANSWER
+                }.getOrDefault(false)
             }
         }
         return false

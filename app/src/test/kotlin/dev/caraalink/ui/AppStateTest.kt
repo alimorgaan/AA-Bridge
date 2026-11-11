@@ -49,4 +49,18 @@ class AppStateTest {
         assertFalse(shouldAutoConnect(idle.copy(link = CarLink.WIRELESS, wireless = WirelessPhase.SEARCHING), true))
         assertFalse(shouldAutoConnect(idle.copy(wireless = WirelessPhase.CONNECTING), true))
     }
+
+    @Test
+    fun autoConnectNeverBesideACableSession() {
+        val cableAfterRetry = ConnectionSnapshot(phase = dev.caraalink.connection.ConnectionPhase.STREAMING)
+        assertFalse(shouldAutoConnect(cableAfterRetry, hasRememberedCar = true))
+    }
+
+    @Test
+    fun retriesTheCarTheServiceWasLookingFor() {
+        val picked = dev.caraalink.wireless.RememberedCar("Car B", "02:bb:bb:bb:bb:bb")
+        val remembered = dev.caraalink.wireless.RememberedCar("Car A", "02:aa:aa:aa:aa:aa")
+        assertEquals(picked, carToRetry(ConnectionSnapshot(target = picked), remembered))
+        assertEquals(remembered, carToRetry(ConnectionSnapshot(), remembered))
+    }
 }

@@ -124,6 +124,11 @@ fun startWireless(context: Context, address: String? = null, name: String? = nul
     context.startForegroundService(intent)
 }
 
+private fun retryWireless(context: Context, connection: ConnectionSnapshot) {
+    val car = carToRetry(connection, AppSettings.wirelessCar(context))
+    startWireless(context, car?.address, car?.name)
+}
+
 private fun stopLink(context: Context) {
     context.startService(Intent(context, UsbLinkForegroundService::class.java).setAction(UsbLinkForegroundService.ACTION_STOP))
 }
@@ -135,7 +140,8 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenHelp: () -> Unit, onOpenNearby:
     val connection = rememberConnection()
     val carConnected = connection.phase.isCarConnected()
     val state = homeState(serverRunning, carConnected, connection.wireless)
-    val rememberedName = AppSettings.wirelessCar(context)?.name ?: ""
+    val retry = carToRetry(connection, AppSettings.wirelessCar(context))
+    val rememberedName = retry?.name ?: ""
     val carName = connection.carName ?: rememberedName.ifEmpty { stringResource(R.string.state_connected) }
     val dark = isSystemInDarkTheme()
     val colors = MaterialTheme.colorScheme
@@ -254,7 +260,7 @@ private fun HomeActions(state: HomeState, connection: ConnectionSnapshot, onOpen
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Button(onClick = { startWireless(context) }, modifier = wide) {
+            Button(onClick = { retryWireless(context, connection) }, modifier = wide) {
                 Text(stringResource(R.string.home_try_again), style = MaterialTheme.typography.titleSmall)
             }
             TextButton(onClick = onOpenNearby) { Text(stringResource(R.string.home_choose_car)) }
@@ -264,7 +270,7 @@ private fun HomeActions(state: HomeState, connection: ConnectionSnapshot, onOpen
             Button(onClick = { context.startActivity(Intent(Settings.Panel.ACTION_WIFI)) }, modifier = wide) {
                 Text(stringResource(R.string.home_wifi_settings), style = MaterialTheme.typography.titleSmall)
             }
-            TextButton(onClick = { startWireless(context) }) { Text(stringResource(R.string.home_try_again)) }
+            TextButton(onClick = { retryWireless(context, connection) }) { Text(stringResource(R.string.home_try_again)) }
         }
         HomeState.CONNECTED -> if (connection.link == CarLink.WIRELESS) {
             Spacer(Modifier.height(16.dp))

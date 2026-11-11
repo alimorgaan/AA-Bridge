@@ -1,6 +1,7 @@
 package dev.caraalink.connection
 
 import dev.caraalink.wireless.NearbyDevice
+import dev.caraalink.wireless.RememberedCar
 
 /**
  * Lifecycle state of the USB link to the head unit. Shared between the
@@ -34,6 +35,8 @@ data class ConnectionSnapshot(
     val wireless: WirelessPhase = WirelessPhase.IDLE,
     /** A device with the remembered car's name but another address, offered as a one-tap choice. */
     val suggestion: NearbyDevice? = null,
+    /** The car the wireless search is for; kept after NOT_FOUND or FAILED so Try again retries it. */
+    val target: RememberedCar? = null,
 )
 
 /**
