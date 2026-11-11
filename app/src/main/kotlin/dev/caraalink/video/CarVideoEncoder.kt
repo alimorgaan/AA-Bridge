@@ -11,7 +11,7 @@ import android.view.Surface
 
 /**
  * Surface-input H.264 encoder. Whatever is drawn to [inputSurface] (our car
- * home screen or a MediaProjection mirror) comes out as Annex-B NAL units,
+ * home screen or Android Auto) comes out as Annex-B NAL units,
  * which is what the head unit's mirror data channel carries.
  */
 class CarVideoEncoder(

@@ -7,7 +7,6 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -80,12 +79,6 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
 
-        <activity
-            android:name=".service.ProjectionRequestActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
         <service
             android:name=".accessibility.HeadUnitServerAccessibilityService"
             android:exported="true"
@@ -101,7 +94,7 @@
         <service
             android:name=".service.UsbLinkForegroundService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice|mediaProjection" />
+            android:foregroundServiceType="connectedDevice" />
 
         <service
             android:name=".widgets.MediaListenerService"

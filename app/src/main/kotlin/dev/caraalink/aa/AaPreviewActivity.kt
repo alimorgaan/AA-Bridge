@@ -12,7 +12,6 @@ import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.Toast
 import dev.caraalink.R
 import dev.caraalink.settings.SettingsActivity
 import dev.caraalink.video.CarHomePresentation
@@ -24,15 +23,6 @@ import dev.caraalink.video.buildHomeContent
  * Presentation uses, via [buildHomeContent]) and only starts the actual AA
  * session -- [AaSessionProbe] plus a decoded, interactive video view -- once
  * the "Android Auto" tile is tapped, same as it works on the car.
- *
- * The tile row used to hardcode just "Android Auto" -- a real car's home
- * screen (see [dev.caraalink.link.CarSession]) always shows all three
- * (Android Auto, Phone screen, Settings), so a preview missing two of
- * them wasn't actually previewing what the car sees. Phone screen has
- * nothing to preview on the phone itself (mirroring the phone's screen
- * onto the phone is circular -- it only does something with a real car
- * plugged in), so it explains that instead of silently doing nothing;
- * Settings is fully real, same screen MainActivity's own button opens.
  */
 class AaPreviewActivity : Activity() {
 
@@ -49,13 +39,6 @@ class AaPreviewActivity : Activity() {
             this,
             listOf(
                 CarHomePresentation.Tile("Android Auto", R.drawable.ic_tile_android_auto, Color.parseColor("#1E8E3E")) { showAaSession() },
-                CarHomePresentation.Tile("Phone screen", R.drawable.ic_tile_phone_screen, Color.parseColor("#1A73E8")) {
-                    Toast.makeText(
-                        this,
-                        "Phone-screen mirroring only does something with a real car plugged in -- nothing to preview here",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                },
                 CarHomePresentation.Tile("Settings", R.drawable.ic_tile_settings, Color.parseColor("#5F6368")) {
                     startActivity(Intent(this, SettingsActivity::class.java))
                 },

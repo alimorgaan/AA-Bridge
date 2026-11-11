@@ -3,7 +3,6 @@ package dev.caraalink.link
 import android.content.Context
 import android.graphics.Color
 import android.hardware.usb.UsbAccessory
-import android.media.projection.MediaProjection
 import android.util.Log
 import dev.caraalink.connection.ConnectionPhase
 import dev.caraalink.connection.ConnectionStateHolder
@@ -26,14 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class CarSession(
     private val context: Context,
     private val accessory: UsbAccessory,
-    private val phone: PhoneActions,
     private val onEnded: (String) -> Unit,
 ) : MirrorHost {
-
-    interface PhoneActions {
-        fun requestScreenCapture()
-        fun back()
-    }
 
     private val logger = DiagnosticLogger(context, "car-session")
     private var transport: AdbTransport? = null
@@ -44,9 +37,8 @@ class CarSession(
     private val features = CarFeatures(context)
     private val display = CarDisplay(context, listOf(
         CarHomePresentation.Tile("Android Auto", R.drawable.ic_tile_android_auto, Color.parseColor("#1E8E3E")) { openAndroidAuto() },
-        CarHomePresentation.Tile("Phone screen", R.drawable.ic_tile_phone_screen, Color.parseColor("#1A73E8")) { openMirror() },
         CarHomePresentation.Tile("Settings", R.drawable.ic_tile_settings, Color.parseColor("#5F6368")) { showSettings() },
-    ), onBack = { phone.back() }, onExit = ::exitToHome)
+    ), onExit = ::exitToHome)
 
     private fun exitToHome(): Unit { display.showHome() }
 
@@ -110,13 +102,6 @@ class CarSession(
 
     fun stop() {
         transport?.stop("stopped by user") ?: release()
-    }
-
-    fun setProjection(projection: MediaProjection) {
-        val show = mirrorWanted
-        mirrorWanted = false
-        display.setProjection(projection, showMirrorNow = show)
-        logger.log("Screen capture granted (showMirror=$show)")
     }
 
     private fun release() {
@@ -410,19 +395,6 @@ class CarSession(
                 dev.caraalink.aa.AaSessionProbe.active?.sendTouch(pointers, actionIndex, action)
             },
         )
-    }
-
-    @Volatile private var mirrorWanted = false
-
-    private fun openMirror() {
-        if (display.showMirror()) return
-        mirrorWanted = true
-        askForCapture()
-    }
-
-    private fun askForCapture() {
-        display.setStatus("Tap \"Start now\" on your phone to allow screen mirroring")
-        phone.requestScreenCapture()
     }
 
     private fun showSettings() {
