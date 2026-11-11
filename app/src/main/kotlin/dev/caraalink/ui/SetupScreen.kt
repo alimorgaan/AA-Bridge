@@ -1,5 +1,7 @@
 package dev.caraalink.ui
 
+import androidx.compose.ui.graphics.Color
+import dev.caraalink.ui.theme.Dash
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -28,7 +30,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -109,17 +110,17 @@ fun SetupScreen(onDone: () -> Unit, onOpenNearby: () -> Unit) {
         requested = true
     }
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    Surface(Modifier.fillMaxSize().dashGlow(Dash.GlowIdle), color = Color.Transparent, contentColor = Dash.Text) {
         Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState())) {
             BrandBar()
             Column(Modifier.padding(horizontal = 24.dp)) {
-                Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.height(4.dp))
                 Text(stringResource(R.string.setup_subtitle), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(20.dp))
 
                 StepCard(1, step, R.string.setup_perm_title, R.string.setup_perm_body) {
-                    Button(onClick = {
+                    GlowButton(stringResource(R.string.setup_perm_button), {
                         if (requested) {
                             context.startActivity(
                                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
@@ -128,12 +129,11 @@ fun SetupScreen(onDone: () -> Unit, onOpenNearby: () -> Unit) {
                         } else {
                             askPermissions.launch(SETUP_PERMISSIONS)
                         }
-                    }) { Text(stringResource(R.string.setup_perm_button)) }
+                    })
                 }
                 StepCard(2, step, R.string.setup_dev_title, R.string.setup_dev_body) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = { AndroidAutoServer.openSettings(context) }) { Text(stringResource(R.string.open_aa)) }
-                        Spacer(Modifier.width(8.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        GlowButton(stringResource(R.string.open_aa), { AndroidAutoServer.openSettings(context) })
                         TextButton(onClick = {
                             AppSettings.setDevModeConfirmed(context, true)
                             step = 3
@@ -144,7 +144,7 @@ fun SetupScreen(onDone: () -> Unit, onOpenNearby: () -> Unit) {
                     Column {
                         MenuHint(stringResource(R.string.menu_start_server))
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = { AndroidAutoServer.openSettings(context) }) { Text(stringResource(R.string.open_aa)) }
+                        GlowButton(stringResource(R.string.open_aa), { AndroidAutoServer.openSettings(context) })
                     }
                 }
                 StepCard(4, step, R.string.setup_car_title, R.string.setup_car_body) {

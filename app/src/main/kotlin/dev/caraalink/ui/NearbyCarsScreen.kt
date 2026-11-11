@@ -9,7 +9,14 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import dev.caraalink.ui.theme.Dash
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,11 +25,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -120,6 +124,7 @@ fun NearbyCarsScreen(onBack: () -> Unit, onConnecting: () -> Unit) {
                     title = stringResource(R.string.home_wifi_off_title),
                     body = stringResource(R.string.home_wifi_off_body),
                     button = stringResource(R.string.home_wifi_settings),
+                    amber = true,
                 ) { context.startActivity(Intent(Settings.Panel.ACTION_WIFI)) }
                 else -> {
                     Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -129,29 +134,16 @@ fun NearbyCarsScreen(onBack: () -> Unit, onConnecting: () -> Unit) {
                     }
                     peers.forEach { device ->
                         val isRemembered = remembered?.address.equals(device.address, ignoreCase = true)
-                        ListItem(
-                            headlineContent = { Text(device.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium) },
-                            supportingContent = {
-                                val note = when {
-                                    connecting == device.address -> R.string.home_connecting_title
-                                    isRemembered -> R.string.nearby_your_car
-                                    else -> R.string.nearby_tap
-                                }
-                                Text(stringResource(note))
-                            },
-                            leadingContent = {
-                                Icon(
-                                    painterResource(if (device.isCar) R.drawable.ic_car else R.drawable.ic_devices),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            },
-                            modifier = Modifier.clickable(enabled = connecting == null) {
-                                connecting = device.address
-                                startWireless(context, device.address, device.name)
-                                onConnecting()
-                            },
-                        )
+                        val note = when {
+                            connecting == device.address -> R.string.home_connecting_title
+                            isRemembered -> R.string.nearby_your_car
+                            else -> R.string.nearby_tap
+                        }
+                        NearbyRow(device, stringResource(note), glow = isRemembered, enabled = connecting == null) {
+                            connecting = device.address
+                            startWireless(context, device.address, device.name)
+                            onConnecting()
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                     Text(
@@ -165,15 +157,49 @@ fun NearbyCarsScreen(onBack: () -> Unit, onConnecting: () -> Unit) {
     }
 }
 
+/** One nearby device as a dashboard tile; the remembered car glows. */
 @Composable
-private fun NoticeCard(title: String, body: String, button: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Column(Modifier.padding(20.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onClick) { Text(button) }
+private fun NearbyRow(device: NearbyDevice, note: String, glow: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .clip(shape)
+            .background(Dash.Tile)
+            .border(1.dp, if (glow) Dash.Teal.copy(alpha = 0.8f) else Dash.TileBorder, shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(42.dp).background(if (device.isCar) Dash.GlowTeal else Dash.Track, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painterResource(if (device.isCar) R.drawable.ic_car else R.drawable.ic_devices),
+                contentDescription = null,
+                tint = if (device.isCar) Dash.Teal else Dash.Muted,
+            )
         }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(device.name, color = Dash.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(note, color = Dash.Muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun NoticeCard(title: String, body: String, button: String, amber: Boolean = false, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(shape).background(Dash.Tile).border(1.dp, Dash.TileBorder, shape).padding(20.dp),
+    ) {
+        Text(title, color = Dash.Text, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(6.dp))
+        Text(body, color = Dash.Muted, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(16.dp))
+        if (amber) AmberButton(button, onClick) else GlowButton(button, onClick)
     }
 }
