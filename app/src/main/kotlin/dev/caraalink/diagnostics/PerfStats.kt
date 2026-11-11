@@ -84,8 +84,8 @@ object PerfStats {
     /**
      * Adds a small translucent HUD to [root] when Settings > Debug >
      * "On-screen debug overlay" is on -- works the same on the phone
-     * (MainActivity, AaPreviewActivity) and the car (AaCarPresentation,
-     * MirrorPresentation), ticking every 500ms while attached.
+     * (MainActivity, AaPreviewActivity) and the car (AaCarPresentation),
+     * ticking every 500ms while attached.
      */
     fun attachHud(context: Context, root: FrameLayout) {
         if (!AppSettings.debugOverlay(context)) return

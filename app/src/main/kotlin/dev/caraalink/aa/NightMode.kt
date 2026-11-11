@@ -1,7 +1,10 @@
 package dev.caraalink.aa
 
+import android.Manifest
 import android.content.Context
-import dev.caraalink.video.WeatherProvider
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -12,7 +15,19 @@ object NightMode {
 
     /** Null when there's no location, so nothing is sent and AA keeps its own default. */
     fun current(context: Context): Boolean? =
-        WeatherProvider.lastLocation(context)?.let { isNight(it.latitude, it.longitude, System.currentTimeMillis()) }
+        lastLocation(context)?.let { isNight(it.latitude, it.longitude, System.currentTimeMillis()) }
+
+    private fun lastLocation(context: Context): Location? {
+        if (context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return null
+        }
+        val lm = context.getSystemService(LocationManager::class.java)
+        return try {
+            lm.getProviders(true).mapNotNull { lm.getLastKnownLocation(it) }.maxByOrNull { it.time }
+        } catch (e: SecurityException) {
+            null
+        }
+    }
 
     /** Sun below the standard sunset altitude (-0.833°). Low-precision Astronomical Almanac formula. */
     fun isNight(latitude: Double, longitude: Double, epochMillis: Long): Boolean {

@@ -1,19 +1,18 @@
 package dev.caraalink.link
 
 import android.content.Context
-import android.graphics.Color
+
 import android.hardware.usb.UsbAccessory
 import android.util.Log
 import dev.caraalink.connection.ConnectionPhase
 import dev.caraalink.connection.ConnectionStateHolder
-import dev.caraalink.R
+
 import dev.caraalink.diagnostics.DiagnosticLogger
 import dev.caraalink.usb.UsbAccessoryConnection
 import dev.caraalink.video.CarDisplay
-import dev.caraalink.video.CarHomePresentation
+import dev.caraalink.video.CarScreen
 import dev.caraalink.video.CarVideoEncoder
 import dev.caraalink.video.VideoEncoder
-import dev.caraalink.video.WeatherProvider
 import org.json.JSONObject
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
@@ -35,13 +34,13 @@ class CarSession(
     private var encoder: VideoEncoder? = null
     private var pxc: PxcChannel? = null
     private val features = CarFeatures(context)
-    private val display = CarDisplay(context, listOf(
-        CarHomePresentation.Tile("Android Auto", R.drawable.ic_tile_android_auto, Color.parseColor("#1E8E3E")) { openAndroidAuto() },
-        CarHomePresentation.Tile("Settings", R.drawable.ic_tile_settings, Color.parseColor("#5F6368")) { showSettings() },
-    ), onExit = ::exitToHome)
+    private val display = CarDisplay(context, onOpenAa = { openAndroidAuto() })
 
-    private fun exitToHome(): Unit { display.showHome() }
-
+    /** The driver left Android Auto on purpose; stay on Closed until they tap to reopen. */
+    private fun closeAa() {
+        dev.caraalink.aa.AaSessionProbe.active?.stop()
+        display.showStatus(CarScreen.CLOSED)
+    }
 
     private val frameLock = Any()
     @Volatile private var dataStream: MirrorStream? = null
@@ -82,22 +81,7 @@ class CarSession(
             ConnectionStateHolder.update { it.copy(phase = ConnectionPhase.ERROR, lastError = reason) }
             onEnded(reason)
         }.also { it.start() }
-        startWeatherUpdates()
         return true
-    }
-
-    @Volatile private var weatherThread: Thread? = null
-
-    private fun startWeatherUpdates() {
-        weatherThread = Thread({
-            try {
-                while (!Thread.currentThread().isInterrupted) {
-                    WeatherProvider.fetch(context)?.let { display.setInfo(it) }
-                    Thread.sleep(15 * 60 * 1000L)
-                }
-            } catch (_: InterruptedException) {
-            }
-        }, "CarWeather").also { it.isDaemon = true; it.start() }
     }
 
     fun stop() {
@@ -110,8 +94,6 @@ class CarSession(
         dev.caraalink.aa.AaSessionProbe.active?.stop()
         aaDecoder?.stop()
         aaDecoder = null
-        weatherThread?.interrupt()
-        weatherThread = null
         android.os.Handler(android.os.Looper.getMainLooper()).post { features.stop() }
         encoder?.release()
         encoder = null
@@ -155,7 +137,6 @@ class CarSession(
 
     private fun openAndroidAuto() {
         if (dev.caraalink.aa.AaSessionProbe.active != null) {
-            display.setStatus("AA: already running")
             showAaSurface()
             return
         }
@@ -166,7 +147,7 @@ class CarSession(
             }
             openingAa = true
         }
-        display.setStatus("AA: checking head unit server…")
+        display.showStatus(CarScreen.STARTING)
         logger.log("openAndroidAuto: checking 127.0.0.1:5277 before starting")
         Thread({
             fun serverUp() = isListening(5277)
@@ -178,7 +159,7 @@ class CarSession(
                     // trigger a Stop action on an enabled server.
                     logger.log("openAndroidAuto: server not accepting TCP -- requesting safe start")
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        display.setStatus("AA: starting head unit server…")
+                        display.showStatus(CarScreen.WAITING)
                         dev.caraalink.accessibility.HeadUnitServerLauncher.start(context)
                     }
                     Thread.sleep(2500)
@@ -192,7 +173,7 @@ class CarSession(
                     // path already uses, no accessibility automation triggered.
                     logger.log("openAndroidAuto: server not listening, auto-start disabled -- notifying only")
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        display.setStatus("AA: start the head unit server on your phone")
+                        display.showStatus(CarScreen.WAITING)
                         dev.caraalink.accessibility.HeadUnitServerLauncher.notifyOpenAndroidAutoManually(context)
                     }
                 }
@@ -264,16 +245,10 @@ class CarSession(
             val probe = dev.caraalink.aa.AaSessionProbe.active
             if (display.mode == CarDisplay.Mode.AA) {
                 if (probe == null) {
-                    // The session ended on its own (e.g. the phone's AA app
-                    // sent a clean SHUTDOWN_REQUEST -- see AaSessionProbe)
-                    // rather than CarSession's own UI ever calling
-                    // AaSessionProbe.stop(). Without this the car was left
-                    // staring at AA's last frozen frame forever instead of
-                    // falling back to CarAALink's own home screen, the way a
-                    // real head unit returns to its launcher when AA exits.
-                    logger.log("AA watchdog: session ended on its own -- returning to car home")
+                    // Session ended on its own (AA's Exit sends SHUTDOWN_REQUEST); don't leave a frozen frame up.
+                    logger.log("AA watchdog: session ended on its own -- showing Closed")
                     watchdogRestartStreak = 0
-                    display.showHome()
+                    display.showStatus(CarScreen.CLOSED)
                 } else {
                     val staleMs = System.currentTimeMillis() - probe.lastVideoFrameAt
                     if (probe.hasReceivedVideo && !probe.isConnectionActive) {
@@ -348,20 +323,8 @@ class CarSession(
                 "autoCrop=${dev.caraalink.settings.AppSettings.aaAutoCrop(context)} fillMode=$fillMode " +
                 "carScreen=${dev.caraalink.link.CarScreenInfo.width}x${dev.caraalink.link.CarScreenInfo.height}",
         )
-        // My first attempt at this fix (guarding on AaSessionProbe.active ===
-        // myProbe) was wrong -- confirmed wrong by a real log, a fresh probe
-        // still died ~2ms after starting, every single restart. The actual
-        // mechanism: ANY restart (watchdog, settings change) dismisses the
-        // OLD AaCarPresentation as part of building a new one, even though
-        // we're staying in AA mode the whole time. That old presentation's
-        // surfaceDestroyed teardown is indistinguishable from "user left AA
-        // for Home/Mirror" by probe identity alone -- active already points
-        // at the brand-new probe by the time it fires, so the old guard was
-        // always true. The real signal for "did the user actually leave AA"
-        // is display.mode: showHome()/showMirror() set it away from AA
-        // *before* dismissing this presentation, while an in-place restart
-        // sets it to AA first and only then dismisses -- so checking it here
-        // tells the two cases apart correctly.
+        // A restart dismisses the old presentation while staying in AA; only a real exit
+        // (showStatus sets mode away from AA first) should stop the probe in onSurface(null).
         val myProbe = dev.caraalink.aa.AaSessionProbe.active
         display.showAa(
             videoWidth = config.resolution.width,
@@ -375,13 +338,7 @@ class CarSession(
                     aaDecoder = dec
                     myProbe?.attachVideoSink { ts, nal -> aaDecoder?.feed(ts, nal) }
                 } else {
-                    // Leaving the AA tile (Home/Mirror picked instead) used to
-                    // just detach the video sink, leaving AaSessionProbe's TLS
-                    // connection to the phone's own head-unit-server mode
-                    // sitting open in the background indefinitely. Actually
-                    // end the session so the phone disconnects for real --
-                    // but only when we really left AA mode, not when this is
-                    // just the previous presentation's own teardown mid-restart.
+                    // End the session for real when leaving AA, not on a restart's teardown.
                     if (display.mode != dev.caraalink.video.CarDisplay.Mode.AA &&
                         dev.caraalink.aa.AaSessionProbe.active === myProbe
                     ) {
@@ -394,15 +351,6 @@ class CarSession(
             onTouch = { pointers, actionIndex, action ->
                 dev.caraalink.aa.AaSessionProbe.active?.sendTouch(pointers, actionIndex, action)
             },
-        )
-    }
-
-    private fun showSettings() {
-        val c = config
-        display.setStatus(
-            if (c == null) "No video config yet"
-            else "Car ${c.width}x${c.height}, ${if (c.wantFps == 0) "on demand" else "${c.wantFps} fps"}, " +
-                "H.264 ${(if (c.bitRate > 0) c.bitRate else DEFAULT_BITRATE) / 1000} kbps, frames sent $framesSent"
         )
     }
 
@@ -461,14 +409,8 @@ class CarSession(
         }
         encoder = enc
         display.attach(enc.inputSurface, config.encodeWidth, config.encodeHeight)
-        display.setStatus("Connected")
-        // Settings > Android Auto > "Jump straight to Android Auto" had a
-        // getter (AppSettings.aaAutoLaunch) but nothing ever called it --
-        // confirmed live, the toggle did nothing. This is the first point in
-        // a session where the car display actually exists to switch away
-        // from; only do it once per session (display.attach() re-runs this
-        // on every real CONFIG_CAPTURE, not just the first).
-        if (!autoLaunchedAa && dev.caraalink.settings.AppSettings.aaAutoLaunch(context)) {
+        // First point the car display exists; once per session, since every CONFIG_CAPTURE lands here.
+        if (!autoLaunchedAa) {
             autoLaunchedAa = true
             openAndroidAuto()
         }
@@ -492,10 +434,7 @@ class CarSession(
 
     override fun onKey(key: Int) {
         logger.log("car key $key")
-        if (key == MirrorControlChannel.KEY_HOME || key == MirrorControlChannel.KEY_BACK) {
-            display.showHome()
-            display.setStatus("Connected")
-        }
+        if (key == MirrorControlChannel.KEY_HOME || key == MirrorControlChannel.KEY_BACK) closeAa()
     }
 
     override fun onDataStreamOpen(stream: MirrorStream) {

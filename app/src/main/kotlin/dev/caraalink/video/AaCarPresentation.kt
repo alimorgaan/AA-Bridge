@@ -41,7 +41,6 @@ class AaCarPresentation(
      */
     private val widthMargin: Int = 0,
     private val heightMargin: Int = 0,
-    private val onExit: () -> Unit,
     private val onSurface: (Surface?) -> Unit,
     private val onTouch: (pointers: List<Triple<Int, Int, Int>>, actionIndex: Int, action: Int) -> Unit,
 ) : Presentation(context, display) {
@@ -156,29 +155,6 @@ class AaCarPresentation(
             }
         }
         root.addView(area, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        // Visible, tappable "home" corner back to CarAALink's own home
-        // screen. This used to be invisible (tap-blind, long-press-only)
-        // on the theory that AA's own in-app back/exit chrome made a
-        // second one redundant -- in practice that just made the only way
-        // out of AA undiscoverable, since AA's own exit chrome is a
-        // separate thing it draws inside the video, not something that
-        // gets you back to CarAALink. Semi-transparent so it doesn't
-        // block much of AA's own UI underneath it.
-        root.addView(
-            TextView(context).apply {
-                text = "⌂"
-                textSize = 22f
-                gravity = Gravity.CENTER
-                setTextColor(Color.WHITE)
-                setBackgroundColor(Color.argb(90, 0, 0, 0))
-                isClickable = true
-                setOnClickListener { onExit() }
-            },
-            FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.START).apply {
-                topMargin = dp(8)
-                leftMargin = dp(8)
-            },
-        )
         dev.caraalink.diagnostics.PerfStats.attachHud(context, root)
         setContentView(root)
     }

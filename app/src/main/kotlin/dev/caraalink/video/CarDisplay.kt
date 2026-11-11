@@ -15,23 +15,23 @@ import android.view.WindowManager
 
 /**
  * Owns what the car sees. One private virtual display (never seen by DeX)
- * renders into the encoder's surface and shows the home screen or Android Auto.
+ * renders into the encoder's surface and shows Android Auto or a status screen.
  * All work happens on the main thread.
  */
 class CarDisplay(
     private val context: Context,
-    private val tiles: List<CarHomePresentation.Tile>,
-    private val onExit: () -> Unit,
+    private val onOpenAa: () -> Unit,
 ) {
-    enum class Mode { HOME, AA }
+    enum class Mode { STATUS, AA }
 
     private val main = Handler(Looper.getMainLooper())
     private var carDisplay: VirtualDisplay? = null
     private var presentation: Presentation? = null
-    @Volatile var mode = Mode.HOME
+    @Volatile var mode = Mode.STATUS
         private set
-    private var status = "Connected"
-    private var info = ""
+    /** Last status screen shown; stays put while Android Auto is on screen. */
+    @Volatile var screen = CarScreen.STARTING
+        private set
     private var touchDownAt = 0L
 
     /** Point the car display at a (new) encoder surface of [w]x[h]. */
@@ -48,18 +48,9 @@ class CarDisplay(
         showCurrent()
     }
 
-    fun setStatus(text: String) = main.post {
-        status = text
-        (presentation as? CarHomePresentation)?.setStatus(text)
-    }
-
-    fun setInfo(text: String) = main.post {
-        info = text
-        (presentation as? CarHomePresentation)?.setInfo(text)
-    }
-
-    fun showHome() = main.post {
-        mode = Mode.HOME
+    fun showStatus(screen: CarScreen) = main.post {
+        this.screen = screen
+        mode = Mode.STATUS
         showCurrent()
     }
 
@@ -98,14 +89,10 @@ class CarDisplay(
             when {
                 mode == Mode.AA && aaVideoSize != null -> aaPresentation(display)
                 else -> {
-                    mode = Mode.HOME
-                    CarHomePresentation(context, display, tiles, onExit = ::showHome).also {
-                        it.show()
-                        it.setStatus(status)
-                        it.setInfo(info)
-                    }
+                    mode = Mode.STATUS
+                    CarStatusPresentation(context, display, screen, onOpenAa)
                 }
-            }.also { if (it !is CarHomePresentation) it.show() }
+            }.also { it.show() }
         } catch (e: WindowManager.InvalidDisplayException) {
             Log.e(TAG, "presentation failed", e)
             null
@@ -117,7 +104,6 @@ class CarDisplay(
         val (wm, hm) = aaMargin
         return AaCarPresentation(
             context, display, w, h, wm, hm,
-            onExit = onExit,
             onSurface = { s -> aaOnSurface?.invoke(s) },
             onTouch = { pointers, actionIndex, action -> aaOnTouch?.invoke(pointers, actionIndex, action) },
         )

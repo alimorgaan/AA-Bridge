@@ -2,28 +2,15 @@ package dev.caraalink.aa
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
-import dev.caraalink.R
-import dev.caraalink.settings.SettingsActivity
-import dev.caraalink.video.CarHomePresentation
-import dev.caraalink.video.buildHomeContent
 
-/**
- * On-phone stand-in for the car screen, for testing without the car: opens
- * on CarAALink's own home screen (same view-building code the real car
- * Presentation uses, via [buildHomeContent]) and only starts the actual AA
- * session -- [AaSessionProbe] plus a decoded, interactive video view -- once
- * the "Android Auto" tile is tapped, same as it works on the car.
- */
+/** On-phone stand-in for the car screen: a live, interactive Android Auto session for testing without the car. */
 class AaPreviewActivity : Activity() {
 
     private var decoder: AaVideoDecoder? = null
@@ -31,20 +18,7 @@ class AaPreviewActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        showHome()
-    }
-
-    private fun showHome() {
-        val home = buildHomeContent(
-            this,
-            listOf(
-                CarHomePresentation.Tile("Android Auto", R.drawable.ic_tile_android_auto, Color.parseColor("#1E8E3E")) { showAaSession() },
-                CarHomePresentation.Tile("Settings", R.drawable.ic_tile_settings, Color.parseColor("#5F6368")) {
-                    startActivity(Intent(this, SettingsActivity::class.java))
-                },
-            ),
-        )
-        setContentView(home.root)
+        showAaSession()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -147,13 +121,6 @@ class AaPreviewActivity : Activity() {
             }
         })
 
-        root.addView(
-            Button(this).apply {
-                text = "Back to car home"
-                setOnClickListener { showHome() }
-            },
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START),
-        )
         dev.caraalink.diagnostics.PerfStats.attachHud(this, root)
 
         setContentView(root)

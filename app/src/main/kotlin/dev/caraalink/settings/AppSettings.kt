@@ -125,9 +125,6 @@ object AppSettings {
     fun aaAutoCrop(context: Context): Boolean =
         prefs(context).getBoolean("aa_auto_crop", true)
 
-    fun aaAutoLaunch(context: Context): Boolean =
-        prefs(context).getBoolean("aa_auto_launch", false)
-
     /**
      * Separate from Custom resolution (which is an exact owner-typed WxH):
      * force a 720p tier even when the panel-fit Auto policy would otherwise

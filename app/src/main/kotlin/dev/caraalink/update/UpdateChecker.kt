@@ -220,7 +220,7 @@ object UpdateChecker {
         val intent = Intent(context, context.javaClass).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(dev.caraalink.R.drawable.ic_tile_settings)
+            .setSmallIcon(dev.caraalink.R.drawable.ic_stat_bridge)
             .setContentTitle(info.title)
             .setContentText("Tap to download and install")
             .setContentIntent(pendingIntent)
