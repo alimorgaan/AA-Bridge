@@ -390,6 +390,8 @@ class AaSessionProbe(
         return try {
             val identity = AaIdentity.load(context)
             val s = Socket().apply {
+                // Nagle held our small acks and touch writes about 30 ms each.
+                tcpNoDelay = true
                 connect(InetSocketAddress(config.host, config.port), config.connectTimeoutMs)
                 soTimeout = config.readTimeoutMs
             }
@@ -559,7 +561,13 @@ class AaSessionProbe(
                         // of streaming several ahead -- a real, self-
                         // inflicted throughput cap, not just decode speed or
                         // thermal throttling.
-                        val maxUnacked = if (message.channelId == AaServiceDiscovery.CHANNEL_MEDIA_SINK_VIDEO) 10 else 1
+                        // Audio at 1 starved AA's media queue (its log: "out of permits", 25 s queued).
+                        // open-headunit grants audio 16 over USB.
+                        val maxUnacked = when (message.channelId) {
+                            AaServiceDiscovery.CHANNEL_MEDIA_SINK_VIDEO -> 10
+                            AaServiceDiscovery.CHANNEL_MEDIA_SOURCE_MICROPHONE -> 1
+                            else -> 16
+                        }
                         val config = AaProtobuf.Writer()
                             .int(1, 2) // status = STATUS_READY
                             .int(2, maxUnacked)
