@@ -267,7 +267,8 @@ class UsbLinkForegroundService : Service() {
     private fun startForegroundWithMic() {
         val notification = buildNotification(ConnectionStateHolder.snapshot)
         val micGranted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (micGranted) {
+        // The microphone type only exists from Android 11; on 10 it's an undeclared type and throws.
+        if (micGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 startForeground(NOTIFICATION_ID, notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
