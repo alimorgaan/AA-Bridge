@@ -101,6 +101,4 @@
     <string name="tile_link">Link</string>
     <string name="link_wireless_short">Wireless</string>
     <string name="link_cable_short">Cable</string>
-    <string name="state_searching">Searching…</string>
-    <string name="state_connecting">Connecting…</string>
 </resources>

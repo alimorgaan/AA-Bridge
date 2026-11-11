@@ -95,23 +95,26 @@ fun StatusRing(mode: RingMode, icon: Painter, label: String, modifier: Modifier 
     }
 }
 
-/** A small dashboard gauge: a caps label over a value with a live dot. */
+enum class Lamp { ON, OFF, ALERT }
+
+/** One indicator light, like a car's instrument cluster: teal when fine, amber when it needs the driver, dim when off. */
 @Composable
-fun DashTile(label: String, value: String, live: Boolean, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Dash.Tile)
-            .border(1.dp, Dash.TileBorder, RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Text(label.uppercase(), color = Dash.Muted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(8.dp).background(if (live) Color(0xFF34D399) else Color(0xFF56656B), CircleShape))
-            Spacer(Modifier.width(7.dp))
-            Text(value, color = Dash.Text, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+fun Telltale(icon: Painter, label: String, lamp: Lamp) {
+    val color = when (lamp) {
+        Lamp.ON -> Dash.Teal
+        Lamp.ALERT -> Dash.Amber
+        Lamp.OFF -> Color(0xFF34444A)
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(48.dp).drawBehind {
+                if (lamp != Lamp.OFF) drawCircle(Brush.radialGradient(listOf(color.copy(alpha = 0.3f), Color.Transparent)))
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
         }
+        Text(label.uppercase(), color = if (lamp == Lamp.OFF) Color(0xFF56656B) else Dash.Muted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
     }
 }
 

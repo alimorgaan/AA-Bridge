@@ -194,26 +194,27 @@ fun HomeScreen(onOpenSettings: () -> Unit, onOpenNearby: () -> Unit) {
             Spacer(Modifier.height(24.dp))
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (state != HomeState.NEEDS_TAP && state != HomeState.WIFI_OFF) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DashTile(
-                        stringResource(R.string.tile_server),
-                        stringResource(if (serverRunning) R.string.state_running else R.string.state_off),
-                        live = serverRunning,
-                        modifier = Modifier.weight(1f),
-                    )
-                    val (label, value) = when {
-                        carConnected && connection.link == CarLink.WIRELESS -> R.string.tile_link to R.string.link_wireless_short
-                        carConnected && connection.link == CarLink.CABLE -> R.string.tile_link to R.string.link_cable_short
-                        carConnected -> R.string.tile_car to R.string.state_connected
-                        state == HomeState.SEARCHING -> R.string.tile_car to R.string.state_searching
-                        state == HomeState.CONNECTING -> R.string.tile_car to R.string.state_connecting
-                        else -> R.string.tile_car to R.string.state_not_connected
-                    }
-                    DashTile(stringResource(label), stringResource(value), live = carConnected, modifier = Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(36.dp, Alignment.CenterHorizontally)) {
+                Telltale(painterResource(R.drawable.ic_server), stringResource(R.string.tile_server), if (serverRunning) Lamp.ON else Lamp.ALERT)
+                val cable = carConnected && connection.link == CarLink.CABLE
+                Telltale(
+                    painterResource(if (cable) R.drawable.ic_usb else R.drawable.ic_wifi),
+                    stringResource(
+                        when {
+                            !carConnected -> R.string.tile_link
+                            cable -> R.string.link_cable_short
+                            else -> R.string.link_wireless_short
+                        },
+                    ),
+                    when {
+                        carConnected -> Lamp.ON
+                        state == HomeState.WIFI_OFF -> Lamp.ALERT
+                        else -> Lamp.OFF
+                    },
+                )
+                Telltale(painterResource(R.drawable.ic_car), stringResource(R.string.tile_car), if (carConnected) Lamp.ON else Lamp.OFF)
             }
+            Spacer(Modifier.height(16.dp))
             HomeActions(state, connection, onOpenNearby)
         }
     }

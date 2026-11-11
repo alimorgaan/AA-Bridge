@@ -96,6 +96,4 @@
     <string name="tile_link">الاتصال</string>
     <string name="link_wireless_short">لاسلكي</string>
     <string name="link_cable_short">كابل</string>
-    <string name="state_searching">جارٍ البحث…</string>
-    <string name="state_connecting">جارٍ الاتصال…</string>
 </resources>
