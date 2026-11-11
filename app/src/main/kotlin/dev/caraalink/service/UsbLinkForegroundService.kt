@@ -280,6 +280,11 @@ class UsbLinkForegroundService : Service() {
      * that then needs the head-unit-server toggle to actually break.
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (!endsOnSwipe(ConnectionStateHolder.snapshot.link)) {
+            Log.i(TAG, "onTaskRemoved: app swiped away -- wireless keeps running")
+            super.onTaskRemoved(rootIntent)
+            return
+        }
         Log.i(TAG, "onTaskRemoved: app swiped away -- stopping session")
         stopping = true
         stopSelfCleanly()
@@ -654,6 +659,9 @@ class UsbLinkForegroundService : Service() {
         const val ACTION_START_ADB_PROBE = "dev.caraalink.service.action.START_ADB_PROBE"
         const val ACTION_STOP = "dev.caraalink.service.action.STOP"
         const val ACTION_START_SESSION = "dev.caraalink.service.action.START_SESSION"
+        /** Wireless keeps running when the app is swiped away, as CarbitLink does; Disconnect or Stop ends it. */
+        internal fun endsOnSwipe(link: CarLink): Boolean = link != CarLink.WIRELESS
+
         /** A session that just failed stops the service; a leftover ERROR seen by a later update must not. */
         internal fun shouldStopOnError(previous: ConnectionPhase?, snapshot: ConnectionSnapshot): Boolean =
             snapshot.phase == ConnectionPhase.ERROR && previous != ConnectionPhase.ERROR && snapshot.link != CarLink.WIRELESS
