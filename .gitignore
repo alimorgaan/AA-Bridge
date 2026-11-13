@@ -16,6 +16,7 @@ captures/
 .cxx/
 *.keystore
 *.jks
+keystore.properties
 # Exception: a shared, non-secret DEBUG-only key committed on purpose so
 # local builds and CI produce the same signature (see app/build.gradle.kts).
 # Never do this for a release keystore.
