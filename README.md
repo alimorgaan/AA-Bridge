@@ -6,15 +6,21 @@ AA Bridge brings Android Auto to cars whose screen only supports CarbitLink (als
 
 The app runs on your phone. It starts a local Android Auto session and sends it to the car, over a USB cable or wirelessly over Wi-Fi Direct. Touches on the car screen go back to Android Auto.
 
+<p align="center">
+  <img src="docs/screenshots/android-auto-starting.webp" alt="Android Auto starting on the screen of a 2026 Geely Emgrand" width="640" />
+</p>
+
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/home-searching.png" alt="AA Bridge looking for the car" width="240" />
-  <!-- Still to add from a drive:
-       docs/screenshots/home-connected.png  Home while connected
-       docs/screenshots/nearby-cars.png     Nearby cars listing the car
-       docs/screenshots/car-screen.jpg      photo of the car screen running Android Auto -->
+  <img src="docs/screenshots/home-searching.png" alt="AA Bridge looking for the car" height="440" />
+  <img src="docs/screenshots/nearby-cars.jpg" alt="Choosing the car from the Nearby cars list, with the car screen on its phone-link page" height="440" />
+  <img src="docs/screenshots/home-connected.jpg" alt="AA Bridge connected, with Android Auto on the car screen" height="440" />
 </p>
+<p align="center">
+  <img src="docs/screenshots/car-screen.jpg" alt="Android Auto with Google Maps and media on the car screen" width="640" />
+</p>
+<p align="center"><sub>2026 Geely Emgrand (head unit EC-KY-4350), connected wirelessly.</sub></p>
 
 ## Will it work in my car?
 
