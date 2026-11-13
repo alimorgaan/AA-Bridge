@@ -30,7 +30,7 @@ The app runs on your phone. It starts a local Android Auto session and sends it 
 
 ## Download
 
-Get the APK from [Releases](../../releases). Android asks once to allow installs from your browser or chat app.
+Download [AA-Bridge.apk](https://github.com/alimorgaan/AA-Bridge/releases/latest/download/AA-Bridge.apk), the latest release. Android asks once to allow installs from your browser or chat app. The app checks for updates by itself.
 
 ## Setup
 
@@ -67,6 +67,8 @@ Needs JDK 17 and the Android SDK.
 ```bash
 ./gradlew assembleDebug
 ```
+
+Release builds are signed only when `keystore.properties` (storeFile, storePassword, keyAlias, keyPassword) is in the project root. It is gitignored.
 
 ## Credits
 

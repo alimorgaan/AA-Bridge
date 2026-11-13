@@ -17,7 +17,6 @@ object AppSettings {
     enum class AaAudioRoute { BT_PREFERRED, DEVICE_ONLY, PHONE_DIRECT }
     enum class CarOrientation { AUTO, LANDSCAPE, PORTRAIT }
     enum class AaFillMode { FIT, FILL }
-    enum class UpdateChannel { STABLE, DEV }
 
     private fun prefs(context: Context) =
         PreferenceManager.getDefaultSharedPreferences(context)
@@ -162,12 +161,6 @@ object AppSettings {
             "device_only" -> AaAudioRoute.DEVICE_ONLY
             "bt_preferred" -> AaAudioRoute.BT_PREFERRED
             else -> AaAudioRoute.PHONE_DIRECT
-        }
-
-    fun updateChannel(context: Context): UpdateChannel =
-        when (prefs(context).getString("update_channel", "stable")) {
-            "dev" -> UpdateChannel.DEV
-            else -> UpdateChannel.STABLE
         }
 
     fun updateAutoCheck(context: Context): Boolean =

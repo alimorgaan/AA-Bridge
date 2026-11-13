@@ -108,13 +108,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Updates">
-        <ListPreference
-            android:key="update_channel"
-            android:title="Update channel"
-            android:summary="Stable checks GitHub's tagged Releases; Dev checks the rolling 'dev' pre-release CI rebuilds on every push to main -- opens the release page either way, nothing installs itself"
-            android:entries="@array/update_channel_entries"
-            android:entryValues="@array/update_channel_values"
-            android:defaultValue="stable" />
         <SwitchPreferenceCompat
             android:key="update_auto_check"
             android:title="Check automatically"

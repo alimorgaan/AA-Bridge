@@ -13,7 +13,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -47,28 +47,3 @@ jobs:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
-
-      # Rolling pre-release: every push OR PR build overwrites the single
-      # "dev" tag/release with the latest debug build, so there's always a
-      # current APK to grab without digging through Actions artifacts
-      # (which expire and need repo access). Previously gated to
-      # `push to main` only -- since all real work happens on aa-post-v1/PRs
-      # against it, that meant this release never actually got published.
-      # Body/name now say which branch or PR it actually came from, since a
-      # single rolling tag means whichever build ran last is what's there.
-      # Never touches real (tagged) releases -- those stay a manual,
-      # owner-published step. `contents: write` (workflow-level permissions
-      # above) covers `pull_request` here too since this repo has no
-      # outside forks to worry about restricting.
-      - name: Publish rolling dev pre-release
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: dev
-          name: "Dev build (${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.pull_request.number) || github.ref_name }})"
-          body: |
-            Automatically rebuilt from `${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}` at `${{ github.event.pull_request.head.sha || github.sha }}`.
-            **Not a real release** — unsigned debug build, may be broken. For testing only.
-          prerelease: true
-          draft: false
-          files: app/build/outputs/apk/debug/app-debug.apk

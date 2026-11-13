@@ -23,19 +23,13 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Checks GitHub for something newer than this install: a tagged Release
- * (Stable channel) or the rolling `dev` pre-release
- * (`.github/workflows/android-ci.yml`'s "Publish rolling dev pre-release"
- * step -- overwritten on every push to `main` with the latest debug APK).
- * Downloads the APK asset itself and hands it to the system installer --
- * previously this just opened the release page and left the user to find
- * and tap the asset themselves.
+ * Checks GitHub's latest tagged Release for something newer than this install,
+ * downloads its APK asset and hands it to the system installer.
  */
 object UpdateChecker {
 
     private const val OWNER = "alimorgaan"
     private const val REPO = "AA-Bridge"
-    private const val DEV_RELEASE_TAG = "dev"
     private const val CHANNEL_ID = "app_updates"
     private const val NOTIFICATION_ID = 4
 
@@ -53,19 +47,14 @@ object UpdateChecker {
     /** [manual] controls whether a "you're up to date" / error Toast shows; a found update always prompts. */
     fun checkNow(context: Context, manual: Boolean) {
         Thread({
-            val result = runCatching {
-                when (AppSettings.updateChannel(context)) {
-                    AppSettings.UpdateChannel.STABLE -> checkStable()
-                    AppSettings.UpdateChannel.DEV -> checkDev()
-                }
-            }
+            val result = runCatching { checkLatestRelease() }
             val outcome = result.getOrNull()
-            logger(context).log("update check (${AppSettings.updateChannel(context)}): ${result.exceptionOrNull() ?: outcome ?: "up to date"}")
+            logger(context).log("update check: ${result.exceptionOrNull() ?: outcome ?: "up to date"}")
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 when {
                     result.isFailure -> if (manual) toast(context, "Update check failed: ${result.exceptionOrNull()?.message}")
                     outcome != null -> promptUpdate(context, outcome)
-                    manual -> toast(context, "Already on the latest ${if (AppSettings.updateChannel(context) == AppSettings.UpdateChannel.DEV) "dev build" else "release"}")
+                    manual -> toast(context, "Already on the latest release")
                 }
             }
         }, "UpdateChecker").start()
@@ -74,34 +63,15 @@ object UpdateChecker {
     /**
      * Returns info for a newer tagged release, else null. `/releases/latest`
      * is a hard 404 (not an empty list) when the repo has never had a single
-     * Release published -- the owner cuts those manually, so a dev build
-     * like this one will hit that until the first one ever exists. That's
-     * "nothing to compare against", not a failure -- treated as up to date,
-     * no error surfaced.
+     * Release published. That's "nothing to compare against", not a
+     * failure -- treated as up to date, no error surfaced.
      */
-    private fun checkStable(): UpdateInfo? {
+    private fun checkLatestRelease(): UpdateInfo? {
         val body = get("https://api.github.com/repos/$OWNER/$REPO/releases/latest") ?: return null
         val json = JSONObject(body)
         val tag = json.getString("tag_name").removePrefix("v")
         if (tag == BuildConfig.VERSION_NAME) return null
         return UpdateInfo("Update available: v$tag", json.getString("html_url"), apkAssetUrl(json))
-    }
-
-    /**
-     * Returns info for the rolling `dev` pre-release's build if it's newer
-     * than this install, else null. Two calls: the Release itself (for its
-     * APK asset + page URL) and the git ref the `dev` tag actually points at
-     * (to resolve it to a commit, since the Release API's own JSON doesn't
-     * include that). No Release published under that tag yet -> nothing to
-     * compare against, same as Stable's no-releases-yet case.
-     */
-    private fun checkDev(): UpdateInfo? {
-        val releaseBody = get("https://api.github.com/repos/$OWNER/$REPO/releases/tags/$DEV_RELEASE_TAG") ?: return null
-        val release = JSONObject(releaseBody)
-        val refBody = get("https://api.github.com/repos/$OWNER/$REPO/git/ref/tags/$DEV_RELEASE_TAG") ?: return null
-        val sha = JSONObject(refBody).getJSONObject("object").getString("sha").take(BuildConfig.GIT_SHA.length)
-        if (sha == BuildConfig.GIT_SHA || BuildConfig.GIT_SHA == "unknown") return null
-        return UpdateInfo("Dev build updated ($sha)", release.getString("html_url"), apkAssetUrl(release))
     }
 
     /** First `.apk` asset's direct download URL, or null if the release has none attached. */

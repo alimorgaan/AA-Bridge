@@ -60,15 +60,6 @@
         <item>phone_direct</item>
     </string-array>
 
-    <string-array name="update_channel_entries">
-        <item>Stable (GitHub Releases)</item>
-        <item>Dev (latest commit on a branch)</item>
-    </string-array>
-    <string-array name="update_channel_values">
-        <item>stable</item>
-        <item>dev</item>
-    </string-array>
-
     <!--
       USB role is CONFIRMED (see claude/roadmap.md): phone is the accessory,
       head unit is the host. This override exists for debugging only — do
