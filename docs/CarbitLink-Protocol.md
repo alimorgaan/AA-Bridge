@@ -148,18 +148,34 @@ encode, because the encoder was targeting 30fps while the car pulled far
 faster than that. This is the measured, log-confirmed mechanism behind
 the "TV lag / repeats motion" symptom -- not a corruption bug, a pacing
 mismatch. Whether the *real* phone-side CarbitLink app also pulls at
-this rate, or whether a real phone's encoder simply runs faster and
-rarely needs the repeat path, is **UNKNOWN** -- we don't have a capture
-of the real phone app's own encode cadence to compare against.
+this rate is **UNKNOWN** -- we don't have a capture of the real phone
+app's own encode cadence to compare against.
+
+That repeat path no longer exists (commits `86bb8af`, `642d0ea`,
+`686fca5`). A request now waits for the next encoded frame instead of
+getting old data. No new capture has been taken since that change, so the
+current `requests`/`sent`/`encoded` rates are not measured here; the
+5-second `stats 5s:` line in the car-session log shows them.
 
 ### Starvation fallback
 
 If the encoder has nothing queued when a request comes in, CarAALink
-waits up to 80ms before falling back to resending the most recently sent
-frame, so the car never times out waiting (`CarSession.kt`,
-`scheduleStarvationCheck`). This is **our own design**, not a documented
-CarbitLink requirement -- we don't have confirmation of what timeout, if
-any, the real protocol actually enforces before this is needed.
+holds the request and answers it with the next encoded frame. If no frame
+at all is sent within 200 ms, it answers with an empty frame (a zero
+length, `MirrorDataChannel.NO_FRAME`) and redraws the car display so the
+encoder produces a fresh picture (`CarSession.kt`,
+`scheduleStarvationCheck`). It never resends an old frame, because
+replaying one jumps the picture back. The encoder itself repeats the
+last picture only when the screen has been still for 100 ms
+(`KEY_REPEAT_PREVIOUS_FRAME_AFTER`).
+
+The pull queue holds at most 2 frames. When it overflows, the dropped
+frame's later P-frames are held back until the next keyframe, so the car
+never decodes against a missing reference.
+
+The 200 ms timeout and the empty-frame reply follow CarbitLink's own
+behavior as described in commit `686fca5`; what timeout, if any, the car
+itself enforces is still not confirmed from a capture.
 
 ## Layer 5: Touch / input (not yet mapped to CarbitLink Mirror)
 
@@ -197,8 +213,8 @@ relevant to CarAALink's USB-AOA implementation and not analyzed further.
   a named SDK call -- we matched by JSON shape, not by tracing code.
 - What `wantEncoder` in `CONFIG_CAPTURE` actually selects.
 - Whether the real phone-side CarbitLink app's Mirror encoder runs at a
-  pull-matching frame rate, or relies on the same starvation-style
-  repeat behavior we do.
+  pull-matching frame rate, or holds each pull until the next frame the
+  way we now do.
 - The exact structure of the `0x00010370` "content"/"value" blob -- looks
   encrypted, not inspected further.
 - Audio channel framing (not captured/analyzed this pass).
