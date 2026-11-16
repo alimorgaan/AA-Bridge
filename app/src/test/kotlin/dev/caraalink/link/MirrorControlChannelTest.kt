@@ -44,7 +44,7 @@ class MirrorControlChannelTest {
 
     @Test
     fun `CONFIG_CAPTURE reaches the host parsed, and replies with H264 + encode size`() {
-        val body = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
+        val body = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(1920).putShort(720).putInt(0).putInt(2).putInt(0)
             .putShort(0).putShort(0).putInt(4_194_304).array()
 
@@ -85,6 +85,14 @@ class MirrorControlChannelTest {
     }
 
     @Test
+    fun `SCREEN_EVENT passes each finger's slot through`() {
+        channel.onData(stream, req(MirrorControlChannel.REQ_SCREEN_EVENT, screenEvent(evType = 2, x = 100, y = 200, slot = 0)))
+        channel.onData(stream, req(MirrorControlChannel.REQ_SCREEN_EVENT, screenEvent(evType = 2, x = 300, y = 400, slot = 1)))
+
+        assertEquals(listOf(0, 1), host.slots)
+    }
+
+    @Test
     fun `SCREEN_EVENT key forwards to onKey, not onTouch`() {
         channel.onData(stream, req(MirrorControlChannel.REQ_SCREEN_EVENT, screenEvent(evType = 4, x = 0, y = 0, key = MirrorControlChannel.KEY_HOME)))
 
@@ -109,9 +117,9 @@ class MirrorControlChannelTest {
     private fun msgType(frame: ByteArray): Int =
         ByteBuffer.wrap(frame, 0, 2).order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
 
-    private fun screenEvent(evType: Int, x: Int, y: Int, key: Int = 0): ByteArray =
+    private fun screenEvent(evType: Int, x: Int, y: Int, key: Int = 0, slot: Int = 0): ByteArray =
         ByteBuffer.allocate(10).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(evType.toShort()).putShort(x.toShort()).putShort(y.toShort())
-            .putShort(0) // slot
+            .putShort(slot.toShort())
             .putShort(key.toShort()).array()
 }

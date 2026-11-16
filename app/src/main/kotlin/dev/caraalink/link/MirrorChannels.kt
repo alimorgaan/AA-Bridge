@@ -65,7 +65,8 @@ interface MirrorStream {
 interface MirrorHost {
     fun onCaptureConfig(config: CaptureConfig)
     fun onStartVideo(): Boolean
-    fun onTouch(action: Int, x: Int, y: Int)
+    /** One finger's DOWN/MOVE/UP; [slot] tells the car's fingers apart. */
+    fun onTouch(action: Int, x: Int, y: Int, slot: Int)
     fun onKey(key: Int)
     fun onDataStreamOpen(stream: MirrorStream)
     fun onDataStreamClosed(stream: MirrorStream)
@@ -147,12 +148,12 @@ class MirrorControlChannel(
                 val evType = bb.short.toInt()
                 val x = bb.short.toInt()
                 val y = bb.short.toInt()
-                bb.short // slot
+                val slot = bb.short.toInt() and 0xFFFF
                 val key = bb.short.toInt() and 0xFFFF
                 when (evType) {
-                    1 -> host.onTouch(MotionEvent.ACTION_UP, x, y)
-                    2 -> host.onTouch(MotionEvent.ACTION_DOWN, x, y)
-                    3 -> host.onTouch(MotionEvent.ACTION_MOVE, x, y)
+                    1 -> host.onTouch(MotionEvent.ACTION_UP, x, y, slot)
+                    2 -> host.onTouch(MotionEvent.ACTION_DOWN, x, y, slot)
+                    3 -> host.onTouch(MotionEvent.ACTION_MOVE, x, y, slot)
                     4 -> host.onKey(key)
                 }
             }
