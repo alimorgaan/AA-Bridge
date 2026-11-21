@@ -19,8 +19,11 @@ class FakeMirrorHost(private val startVideoResult: Boolean = true) : MirrorHost 
         return startVideoResult
     }
 
-    override fun onTouch(action: Int, x: Int, y: Int) {
+    val slots = mutableListOf<Int>()
+
+    override fun onTouch(action: Int, x: Int, y: Int, slot: Int) {
         touches.add(Triple(action, x, y))
+        slots.add(slot)
     }
 
     override fun onKey(key: Int) {

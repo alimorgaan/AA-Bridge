@@ -351,7 +351,8 @@ class QdTransport(
             3 -> MotionEvent.ACTION_MOVE
             else -> action.takeIf { it in 0..2 } ?: return
         }
-        host.onTouch(ev, x.toInt(), y.toInt())
+        // Byte 5 is the finger's id; with one finger down, TouchTracker accepts any id.
+        host.onTouch(ev, x.toInt(), y.toInt(), p[5].toInt() and 0xFF)
     }
 
     /** CarSession hands over int32 LE length + Annex-B frames, as on CarbitLink's data channel. */

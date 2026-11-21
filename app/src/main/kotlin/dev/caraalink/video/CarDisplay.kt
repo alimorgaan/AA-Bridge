@@ -9,9 +9,11 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.Display
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.WindowManager
+import dev.caraalink.link.TouchGesture
 
 /**
  * Owns what the car sees. One private virtual display (never seen by DeX)
@@ -109,12 +111,26 @@ class CarDisplay(
         )
     }
 
-    /** Car touch in car-display pixels, delivered to whatever is on screen. */
-    fun touch(action: Int, x: Float, y: Float) = main.post {
+    /**
+     * Car touch, every finger at once, delivered to whatever is on screen.
+     * [scaleX]/[scaleY] turn car-screen pixels into car-display pixels.
+     */
+    fun touch(gesture: TouchGesture, scaleX: Float, scaleY: Float) = main.post {
         val view = presentation?.window?.decorView ?: return@post
         val now = SystemClock.uptimeMillis()
-        if (action == MotionEvent.ACTION_DOWN) touchDownAt = now
-        val ev = MotionEvent.obtain(touchDownAt, now, action, x, y, 0)
+        if (gesture.action == MotionEvent.ACTION_DOWN) touchDownAt = now
+        val props = gesture.pointers.map {
+            MotionEvent.PointerProperties().apply { id = it.id; toolType = MotionEvent.TOOL_TYPE_FINGER }
+        }.toTypedArray()
+        val coords = gesture.pointers.map {
+            MotionEvent.PointerCoords().apply { x = it.x * scaleX; y = it.y * scaleY; pressure = 1f; size = 1f }
+        }.toTypedArray()
+        val pointerAction = gesture.action == MotionEvent.ACTION_POINTER_DOWN || gesture.action == MotionEvent.ACTION_POINTER_UP
+        val action = if (pointerAction) gesture.action or (gesture.actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT) else gesture.action
+        val ev = MotionEvent.obtain(
+            touchDownAt, now, action, props.size, props, coords,
+            0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0,
+        )
         view.dispatchTouchEvent(ev)
         ev.recycle()
     }

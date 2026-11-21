@@ -433,13 +433,14 @@ class CarSession(
         return encoder != null
     }
 
-    override fun onTouch(action: Int, x: Int, y: Int) {
+    private val touches = TouchTracker()
+
+    override fun onTouch(action: Int, x: Int, y: Int, slot: Int) {
         val c = config ?: return
         val enc = encoder ?: return
+        val gesture = touches.onEvent(action, slot, x, y) ?: return
         // Car coordinates are in its own screen size; the encoder may be a few pixels smaller.
-        val fx = x * enc.width.toFloat() / c.width
-        val fy = y * enc.height.toFloat() / c.height
-        display.touch(action, fx, fy)
+        display.touch(gesture, enc.width.toFloat() / c.width, enc.height.toFloat() / c.height)
     }
 
     override fun onKey(key: Int) {
@@ -448,6 +449,8 @@ class CarSession(
     }
 
     override fun onDataStreamOpen(stream: MirrorStream) {
+        // A finger held across a stream restart never gets its UP; don't leave it stuck down.
+        touches.reset()
         synchronized(frameLock) {
             dataStream = stream
             configSent = false
