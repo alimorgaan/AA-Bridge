@@ -28,7 +28,7 @@ class QdFramesTest {
     fun readerHandlesPaddedSplitAndUnpaddedFrames() {
         val got = mutableListOf<Pair<Int, Int>>()
         val junk = mutableListOf<Int>()
-        val reader = QdReader({ type, _, payload -> got += type to payload.size }) { junk += it.size }
+        val reader = QdReader({ type, _, payload -> got += type to payload.size }, { _, _ -> }) { junk += it.size }
         val padded = QdFrames.frame(QdFrames.TYPE_VIDEO, QdFrames.FORMAT_H264, ByteArray(700))
         reader.feed(padded.copyOfRange(0, 512), 512)
         reader.feed(padded.copyOfRange(512, 1024), 512)
@@ -37,6 +37,29 @@ class QdFramesTest {
         reader.feed(hex("01 02") + unpadded + unpadded, 4 + 2 * unpadded.size)
         assertEquals(listOf(1 to 700, 0 to 18, 0 to 18), got)
         assertEquals(listOf(2), junk)
+    }
+
+    @Test
+    fun oldFormatMatchesAGeelyCapture() {
+        // The car's own BTADDRESS request carries this CRC.
+        assertEquals(0xb83b, QdBin.crc16("A6A6010000003110QDRIVE_ASSISTANT09BTADDRESS00".toByteArray()))
+        assertEquals("A6A6000000003110QDRIVE_ASSISTANT09BTADDRESS00569f", String(QdBin.a6a6("BTADDRESS")))
+        assertEquals(
+            """A6A6000000005110QDRIVE_ASSISTANT0cLEGAL_APP_ON0100000015{"D":0,"T":"i","V":1}f441""",
+            String(QdBin.a6a6("LEGAL_APP_ON", """{"D":0,"T":"i","V":1}""")),
+        )
+
+        // As the car sent them: a HuMsg block, its A6A6 text in the next 512-byte read, then Version.
+        val text = QdBin.a6a6("HUINFO", "x")
+        val hu = QdBin.block(QdBin.TYPE_HU, 1, 0, 0).putInt(8, 1024).putInt(64, text.size).array() + text.copyOf(512)
+        val version = QdBin.block(QdBin.TYPE_CMD, 1).putInt(68, QdBin.CMD_VERSION).array()
+        val got = mutableListOf<String?>()
+        val reader = QdReader({ _, _, _ -> }, { b, extra ->
+            got += if (b[7].toInt() == QdBin.TYPE_HU) QdBin.logicId(extra.copyOf(text.size)) else "cmd ${b[71]}"
+        }) { junk -> throw AssertionError("junk ${junk.size}") }
+        reader.feed(hu.copyOf(512), 512)
+        reader.feed(hu.copyOfRange(512, 1024) + version, 1024)
+        assertEquals(listOf("HUINFO", "cmd 3"), got)
     }
 
     @Test
