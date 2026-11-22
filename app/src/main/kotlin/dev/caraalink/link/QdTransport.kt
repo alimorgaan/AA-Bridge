@@ -70,6 +70,9 @@ object QdBin {
     const val CMD_UPGRADE = 13
     const val CMD_CAPTURE_SUPPORT = 16
     const val CMD_KEY_FRAME = 17
+    const val ACTION_ENCODER_ARGS = 18
+    /** The SSP JSON for int 1. */
+    const val INT_1 = """{"D":0,"T":"i","V":1}"""
 
     fun isBin(b: ByteArray, off: Int = 0) = b.size - off >= 4 && b[off] == 0x21.toByte() &&
         b[off + 1] == 0x42.toByte() && b[off + 2] == 0x49.toByte() && b[off + 3] == 0x4E.toByte()
@@ -330,7 +333,7 @@ class QdTransport(
                 // QDLink: heartbeat every 3 s, the first after 1 s, before the car has said anything.
                 if (tick % 3 == 1 && !bin) sendJson(QdFrames.TYPE_CMD, """{"CMD":"HEARTBEAT"}""", log = tick == 1)
                 if (whitelist) {
-                    if (bin) sendHu("LEGAL_APP_ON", """{"D":0,"T":"i","V":1}""", log = false)
+                    if (bin) sendHu("LEGAL_APP_ON", QdBin.INT_1, log = false)
                     else sendJson(QdFrames.TYPE_APP, WHITELIST_ON, log = false)
                 }
                 val silentMs = System.currentTimeMillis() - lastReadAt
@@ -426,10 +429,16 @@ class QdTransport(
                 logger.log("QD RX !BIN cmd=$cmd value=$value")
                 onBinCommand(b, cmd, value)
             }
-            type == QdBin.TYPE_SCREEN && action != 18 -> onScreenRequest(b)
+            type == QdBin.TYPE_SCREEN && action == QdBin.ACTION_ENCODER_ARGS -> {
+                fps = bb.getInt(64)
+                bitRate = bb.getInt(68)
+                interval = bb.getInt(72)
+                configure()
+            }
+            type == QdBin.TYPE_SCREEN -> onScreenRequest(b)
             type == QdBin.TYPE_HU && action == 1 -> onHuMsg(extra.copyOf(minOf(maxOf(bb.getInt(64), 0), extra.size)))
+            type == QdBin.TYPE_HU -> Unit // Acknowledges one of our HuMsgs.
             type == QdBin.TYPE_TOUCH -> onBinTouch(bb)
-            // The car may acknowledge each LEGAL_APP_ON; log the first few unknowns only.
             else -> if (binOther++ < 20) logger.logBytes("QD RX !BIN type=$type action=$action cmd=$cmd", b, 96)
         }
     }
@@ -454,8 +463,12 @@ class QdTransport(
             QdBin.CMD_CAPTURE_SUPPORT -> {
                 send(QdBin.reply(b, 72).putInt(192, 1).array())
                 logger.log("QD TX: MirrorSupport ret=1")
-                sendHu("phoneready")
-                sendHu("phonereadynew")
+                // QDLink waits for the user's capture consent here, so its phoneinitok goes out first.
+                after(1000) {
+                    sendHu("phoneready")
+                    Thread.sleep(300)
+                    sendHu("phonereadynew")
+                }
             }
             QdBin.CMD_PLAY_STATUS -> if (value == 1) {
                 if (!configured) configure()
@@ -481,7 +494,6 @@ class QdTransport(
         bitRate = bb.getInt(184)
         interval = bb.getInt(188)
         send(QdBin.speech())
-        configure()
     }
 
     private fun onHuMsg(p: ByteArray) {
@@ -489,11 +501,17 @@ class QdTransport(
         if (logic != "heartbeat") logger.log("QD RX A6A6: ${String(p)}")
         when (logic) {
             "HUINFO" -> {
-                sendHu("phoneinitok")
-                // QDLink starts its 1 s LEGAL_APP_ON timer here when the car watches apps.
-                whitelist = Regex("legal_app_watch\\W+1").containsMatchIn(String(p))
+                val watched = Regex("legal_app_watch\\W+1").containsMatchIn(String(p))
+                after(500) {
+                    sendHu("phoneinitok")
+                    sendHu("NEEDUPGRADE", QdBin.INT_1) // No update for the car's link app.
+                    // QDLink starts its 1 s LEGAL_APP_ON timer here when the car watches apps.
+                    whitelist = watched
+                }
             }
             "BTADDRESS" -> sendHu("BTADDRESS", """{"D":0,"T":"s","V":"00:00:00:00:00:00"}""")
+            // ponytail: always "this phone is on the car's Bluetooth"; QDLink checks A2DP, which needs BLUETOOTH_CONNECT.
+            "CARBTADDRESS" -> sendHu("COMPARE_OK")
         }
     }
 
@@ -509,6 +527,12 @@ class QdTransport(
             else -> MotionEvent.ACTION_UP
         }
         host.onTouch(ev, x, y)
+    }
+
+    /** QDLink pauses before some answers; the reader must not wait for them. */
+    private fun after(ms: Long, answer: () -> Unit) = thread(name = "QDLink-answer", isDaemon = true) {
+        Thread.sleep(ms)
+        if (!closed.get()) answer()
     }
 
     private fun sendHu(logic: String, vararg args: String, log: Boolean = true) {
@@ -617,12 +641,13 @@ class QdTransport(
         private fun binFrame(au: ByteArray): ByteArray {
             val total = QdBin.SIZE + (au.size + QdBin.SIZE - 1) / QdBin.SIZE * QdBin.SIZE
             val (long, short) = phoneSizes()
-            val gop = interval.takeIf { it > 0 } ?: 4
             val header = QdBin.reply(binScreen ?: QdBin.block(QdBin.TYPE_SCREEN, 0, 28, 88).array(), 208)
-                .putInt(8, total).putInt(92, au.size).putInt(100, long).putInt(104, short)
+            val rate = header.getInt(180).takeIf { it > 0 } ?: 24
+            val gop = header.getInt(188).takeIf { it > 0 } ?: 4
+            header.putInt(8, total).putInt(92, au.size).putInt(100, long).putInt(104, short)
                 .putInt(116, carW).putInt(120, carH).putInt(132, 3).putInt(136, 90).putInt(140, 1).putInt(148, 1920).putInt(152, 1080)
-                .putInt(180, videoFps()).putInt(184, videoBitRate()).putInt(188, gop)
-                .putInt(192, videoFps()).putInt(196, videoBitRate()).putInt(200, gop).putInt(204, 1)
+                .putInt(180, rate).putInt(188, gop)
+                .putInt(192, rate).putInt(196, header.getInt(184)).putInt(200, gop).putInt(204, 1)
             return ByteBuffer.allocate(total).put(header.array()).put(au).array()
         }
 
