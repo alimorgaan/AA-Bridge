@@ -65,6 +65,7 @@ object QdBin {
     const val TYPE_TOUCH = 10
     const val TYPE_SPEECH = 12
     const val CMD_VERSION = 3
+    const val CMD_LAND_MODE = 5
     const val CMD_HEARTBEAT = 10
     const val CMD_PLAY_STATUS = 12
     const val CMD_UPGRADE = 13
@@ -410,6 +411,8 @@ class QdTransport(
     /** An old-format car: Version, capture support, the capture request and PlayStatus lead to video. */
     private fun onBin(b: ByteArray, extra: ByteArray) {
         if (!bin) {
+            // QDLink keeps to the format of the car's first frame.
+            if (carInfo) return logger.logBytes("QD RX !BIN in a 5A5A session", b, 96)
             bin = true
             carInfo = true // Version stands in for CAR_INFO; no handshake timeout.
             logger.log("QD: the car speaks the old !BIN format")
@@ -437,9 +440,10 @@ class QdTransport(
             }
             type == QdBin.TYPE_SCREEN -> onScreenRequest(b)
             type == QdBin.TYPE_HU && action == 1 -> onHuMsg(extra.copyOf(minOf(maxOf(bb.getInt(64), 0), extra.size)))
-            type == QdBin.TYPE_HU -> Unit // Acknowledges one of our HuMsgs.
+            // Plain acknowledgement of one of our HuMsgs; one that says more is logged below.
+            type == QdBin.TYPE_HU && (64 until b.size).all { b[it].toInt() == 0 } -> Unit
             type == QdBin.TYPE_TOUCH -> onBinTouch(bb)
-            else -> if (binOther++ < 20) logger.logBytes("QD RX !BIN type=$type action=$action cmd=$cmd", b, 96)
+            else -> if (binOther++ < 60) logger.logBytes("QD RX !BIN type=$type action=$action cmd=$cmd", b, 208)
         }
     }
 
@@ -461,20 +465,28 @@ class QdTransport(
                 logger.log("QD TX: Version reply + Upgrade")
             }
             QdBin.CMD_CAPTURE_SUPPORT -> {
-                send(QdBin.reply(b, 72).putInt(192, 1).array())
-                logger.log("QD TX: MirrorSupport ret=1")
-                // QDLink waits for the user's capture consent here, so its phoneinitok goes out first.
-                after(1000) {
-                    sendHu("phoneready")
-                    Thread.sleep(300)
-                    sendHu("phonereadynew")
+                // QDLink says yes only once the user accepts the capture dialog, so never at once.
+                thread(name = "QDLink-consent", isDaemon = true) {
+                    Thread.sleep(CONSENT_MS)
+                    if (closed.get()) return@thread
+                    send(QdBin.reply(b, 72).putInt(192, 1).array())
+                    logger.log("QD TX: MirrorSupport ret=1")
                 }
+                // QDLink's pauses, also on its reader thread: they set the order of all its answers.
+                Thread.sleep(300)
+                sendHu("phoneready")
+                Thread.sleep(300)
+                sendHu("phonereadynew")
             }
             QdBin.CMD_PLAY_STATUS -> if (value == 1) {
                 if (!configured) configure()
                 host.onDataStreamOpen(video)
             }
             QdBin.CMD_KEY_FRAME -> host.onStartVideo()
+            QdBin.CMD_LAND_MODE -> {
+                send(QdBin.reply(b, 76).putInt(192, value).putInt(196, 1).array())
+                logger.log("QD TX: LandMode $value ok")
+            }
         }
     }
 
@@ -501,13 +513,11 @@ class QdTransport(
         if (logic != "heartbeat") logger.log("QD RX A6A6: ${String(p)}")
         when (logic) {
             "HUINFO" -> {
-                val watched = Regex("legal_app_watch\\W+1").containsMatchIn(String(p))
-                after(500) {
-                    sendHu("phoneinitok")
-                    sendHu("NEEDUPGRADE", QdBin.INT_1) // No update for the car's link app.
-                    // QDLink starts its 1 s LEGAL_APP_ON timer here when the car watches apps.
-                    whitelist = watched
-                }
+                Thread.sleep(500)
+                sendHu("phoneinitok")
+                sendHu("NEEDUPGRADE", QdBin.INT_1) // No update for the car's link app.
+                // QDLink starts its 1 s LEGAL_APP_ON timer here when the car watches apps.
+                whitelist = Regex("legal_app_watch\\W+1").containsMatchIn(String(p))
             }
             "BTADDRESS" -> sendHu("BTADDRESS", """{"D":0,"T":"s","V":"00:00:00:00:00:00"}""")
             // ponytail: always "this phone is on the car's Bluetooth"; QDLink checks A2DP, which needs BLUETOOTH_CONNECT.
@@ -527,12 +537,6 @@ class QdTransport(
             else -> MotionEvent.ACTION_UP
         }
         host.onTouch(ev, x, y)
-    }
-
-    /** QDLink pauses before some answers; the reader must not wait for them. */
-    private fun after(ms: Long, answer: () -> Unit) = thread(name = "QDLink-answer", isDaemon = true) {
-        Thread.sleep(ms)
-        if (!closed.get()) answer()
     }
 
     private fun sendHu(logic: String, vararg args: String, log: Boolean = true) {
@@ -620,8 +624,9 @@ class QdTransport(
                     continue
                 }
                 if (bin) {
-                    // QDLink 1.5.0 sends SPS+PPS as their own frame; we repeat them before each IDR.
-                    if (nal == 5) parameterSets?.let { send(binFrame(it), video = true) }
+                    // QDLink 1.5.0 sends SPS+PPS as their own frame; we repeat them before each key
+                    // frame, which some encoders open with SEI or AUD.
+                    if (nal != 1) parameterSets?.let { send(binFrame(it), video = true) }
                     send(binFrame(au), video = true)
                 } else {
                     // QDLink 1.9.8 sends SPS+PPS ahead of every frame over USB.
@@ -648,6 +653,7 @@ class QdTransport(
                 .putInt(116, carW).putInt(120, carH).putInt(132, 3).putInt(136, 90).putInt(140, 1).putInt(148, 1920).putInt(152, 1080)
                 .putInt(180, rate).putInt(188, gop)
                 .putInt(192, rate).putInt(196, header.getInt(184)).putInt(200, gop).putInt(204, 1)
+            if (framesSent == 0L) logger.logBytes("QD TX !BIN video header", header.array(), 208)
             return ByteBuffer.allocate(total).put(header.array()).put(au).array()
         }
 
@@ -667,6 +673,7 @@ class QdTransport(
         private const val SILENCE_MS = 5_000L
         private const val WHITELIST_ON = """{"AppID":"Mirror","FunctionID":"WhitelistAppOn","Para":{"WhitelistAppOn":1}}"""
 
+        private const val CONSENT_MS = 2_500L
         private const val APP_STATUS_RESENDS = 3
         private const val APP_STATUS_GAP_MS = 2_500L
         // Timings from Shams-eldin's Emgrand Auto, tuned on QDLink cars.
