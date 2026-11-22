@@ -28,6 +28,10 @@ fun shouldAutoConnect(snapshot: ConnectionSnapshot, hasRememberedCar: Boolean): 
         WirelessPhase.IDLE, WirelessPhase.NOT_FOUND, WirelessPhase.FAILED, WirelessPhase.WIFI_OFF,
     )
 
+/** A recreated activity gets its old plug-in event again; a running cable session must not restart for it. */
+fun isRepeatedAttach(redelivered: Boolean, snapshot: ConnectionSnapshot): Boolean =
+    redelivered && snapshot.link == CarLink.CABLE
+
 fun ConnectionPhase.isCarConnected(): Boolean =
     this == ConnectionPhase.ATTACHED || this == ConnectionPhase.STREAMING || this == ConnectionPhase.RECONNECTING
 

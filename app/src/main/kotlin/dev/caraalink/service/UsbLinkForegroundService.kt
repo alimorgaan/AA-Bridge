@@ -221,9 +221,12 @@ class UsbLinkForegroundService : Service() {
         sniffer?.stop()
         adbProbe?.stop()
         session?.stop()
-        val s = CarSession(this, accessory) { reason ->
+        lateinit var s: CarSession
+        s = CarSession(this, accessory) { reason ->
             handler.post {
                 Log.i(TAG, "session ended: $reason")
+                // A replaced session's end must not stop the service under the new one.
+                if (session !== s) return@post
                 session = null
                 if (!stopping && isTransportIoFailure(reason) && pendingAccessory != null) {
                     scheduleTransportReconnect()

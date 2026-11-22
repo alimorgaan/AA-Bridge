@@ -1,10 +1,14 @@
 package dev.caraalink.link
 
+import dev.caraalink.diagnostics.DiagnosticLogger
+import dev.caraalink.usb.UsbAccessoryConnection
+import java.nio.ByteBuffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class QdFramesTest {
     private fun hex(s: String) = s.split(" ").map { it.toInt(16).toByte() }.toByteArray()
@@ -60,6 +64,24 @@ class QdFramesTest {
         reader.feed(hu.copyOf(512), 512)
         reader.feed(hu.copyOfRange(512, 1024) + version, 1024)
         assertEquals(listOf("HUINFO", "cmd 3"), got)
+    }
+
+    @Test
+    fun aCarReopenedMidSessionKeepsTheScreenItAskedFor() {
+        val onBin = QdTransport::class.java.getDeclaredMethod("onBin", ByteArray::class.java, ByteArray::class.java)
+            .apply { isAccessible = true }
+        fun drive(vararg blocks: ByteBuffer): CaptureConfig {
+            val host = FakeMirrorHost()
+            val qd = QdTransport(mock(UsbAccessoryConnection::class.java), mock(DiagnosticLogger::class.java), host) {}
+            blocks.forEach { onBin.invoke(qd, it.array(), ByteArray(0)) }
+            return host.capturedConfigs.last()
+        }
+        val screen = QdBin.block(QdBin.TYPE_SCREEN, 1).putInt(64, 1536).putInt(68, 576)
+        val args = QdBin.block(QdBin.TYPE_SCREEN, QdBin.ACTION_ENCODER_ARGS).putInt(68, 2_265_600).putInt(72, 2)
+        val play = QdBin.block(QdBin.TYPE_CMD, 1).putInt(68, QdBin.CMD_PLAY_STATUS).putInt(72, 1)
+        val first = drive(screen, args, play)
+        assertEquals(1536 to 576, first.width to first.height)
+        assertEquals(first, drive(play))
     }
 
     @Test

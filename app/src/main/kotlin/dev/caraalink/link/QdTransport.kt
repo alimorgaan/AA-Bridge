@@ -451,6 +451,7 @@ class QdTransport(
         val bb = ByteBuffer.wrap(b)
         when (cmd) {
             QdBin.CMD_VERSION -> {
+                lastCapture = null // A full handshake: the car will ask again.
                 val w = bb.getInt(128)
                 val h = bb.getInt(132)
                 logger.log("QD car: ${w}x$h version='${String(b, 72, 32).trim('\u0000', ' ')}' type='${String(b, 104, 16).trim('\u0000', ' ')}'")
@@ -479,7 +480,16 @@ class QdTransport(
                 sendHu("phonereadynew")
             }
             QdBin.CMD_PLAY_STATUS -> if (value == 1) {
-                if (!configured) configure()
+                if (!configured) {
+                    if (binScreen == null) lastCapture?.let { c ->
+                        logger.log("QD: the car skipped its capture request, using its last one")
+                        useScreen(c.screen)
+                        fps = c.fps
+                        bitRate = c.bitRate
+                        interval = c.interval
+                    }
+                    configure()
+                }
                 host.onDataStreamOpen(video)
             }
             QdBin.CMD_KEY_FRAME -> host.onStartVideo()
@@ -493,6 +503,11 @@ class QdTransport(
     /** The car's screen capture request: size at 64/68, encoding at 80, rate at 180/184/188. */
     private fun onScreenRequest(b: ByteArray) {
         logger.logBytes("QD RX !BIN screen request", b, 208)
+        useScreen(b)
+        send(QdBin.speech())
+    }
+
+    private fun useScreen(b: ByteArray) {
         binScreen = b
         val bb = ByteBuffer.wrap(b)
         val w = bb.getInt(64)
@@ -505,7 +520,6 @@ class QdTransport(
         fps = bb.getInt(180)
         bitRate = bb.getInt(184)
         interval = bb.getInt(188)
-        send(QdBin.speech())
     }
 
     private fun onHuMsg(p: ByteArray) {
@@ -556,6 +570,7 @@ class QdTransport(
 
     private fun configure() {
         configured = true
+        binScreen?.let { lastCapture = Capture(it, fps, bitRate, interval) }
         logger.log("QD video: ${carW}x$carH fps=${videoFps()} bitRate=${videoBitRate()} (car asked fps=$fps bitRate=$bitRate interval=$interval type=$encodingType)")
         host.onCaptureConfig(CaptureConfig(carW, carH, videoFps(), 1, videoBitRate(), 0, 0, 0, align = 2))
     }
@@ -665,7 +680,12 @@ class QdTransport(
         }
     }
 
+    private class Capture(val screen: ByteArray, val fps: Int, val bitRate: Int, val interval: Int)
+
     companion object {
+        /** Reopened mid-session, the car goes straight to PlayStatus without its size and encoder args. */
+        @Volatile private var lastCapture: Capture? = null
+
         const val MANUFACTURER = "Neusoft"
         private const val QDLINK_VERSION = "1.9.8"
         private const val RAW_READS_LOGGED = 12
