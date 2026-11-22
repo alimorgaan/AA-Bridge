@@ -115,9 +115,19 @@ class UsbLinkForegroundService : Service() {
         }
     }
 
+    // Testers report car blackouts on screen lock; this puts the lock next to them in the log.
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) =
+            DiagnosticLogger(context, "phone").log(intent.action.orEmpty().substringAfterLast('.'))
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        })
         ConnectionStateHolder.addListener(stateListener)
         val filter = IntentFilter(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -265,6 +275,7 @@ class UsbLinkForegroundService : Service() {
         detachStopRunnable?.let { handler.removeCallbacks(it) }
         detachStopRunnable = null
         runCatching { unregisterReceiver(detachReceiver) }
+        runCatching { unregisterReceiver(screenReceiver) }
         sniffer?.stop()
         adbProbe?.stop()
         releaseWakeLock()
