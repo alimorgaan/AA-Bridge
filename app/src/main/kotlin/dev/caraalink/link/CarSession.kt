@@ -339,6 +339,8 @@ class CarSession(
         // a full reconnect, so arm the bus SettingsActivity signals through.
         dev.caraalink.aa.AaReconnectBus.onVideoSettingsChanged = {
             logger.log("AA video settings changed -- reconnecting session")
+            // A tick before the reopen would take the stopped session for an exit and stay on Closed.
+            aaWatchdog.removeCallbacks(aaWatchdogTick)
             dev.caraalink.aa.AaSessionProbe.active?.stop()
             // A warm restart needs a moment for gearhead to tear down the old session.
             aaWatchdog.postDelayed({ if (mayAutoOpenAa(released, display.screen)) openAndroidAuto() }, 1500)
