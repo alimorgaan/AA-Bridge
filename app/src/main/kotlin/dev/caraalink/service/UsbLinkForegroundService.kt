@@ -77,6 +77,7 @@ class UsbLinkForegroundService : Service() {
     private var stopping = false
 
     private val wirelessLog by lazy { DiagnosticLogger(this, "wireless") }
+    private val phoneLog by lazy { DiagnosticLogger(this, "phone") }
     private var wirelessLink: WirelessLink? = null
     private var wirelessTarget: RememberedCar? = null
     private var connectingTo: String? = null
@@ -118,7 +119,7 @@ class UsbLinkForegroundService : Service() {
     // Testers report car blackouts on screen lock; this puts the lock next to them in the log.
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) =
-            DiagnosticLogger(context, "phone").log(intent.action.orEmpty().substringAfterLast('.'))
+            phoneLog.log(intent.action.orEmpty().substringAfterLast('.'))
     }
 
     override fun onCreate() {
@@ -317,11 +318,13 @@ class UsbLinkForegroundService : Service() {
             try {
                 startForeground(NOTIFICATION_ID, notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or location)
+                phoneLog.log("service started with microphone")
                 return
             } catch (e: SecurityException) {
                 Log.w(TAG, "startForeground with microphone refused -- retrying connectedDevice only", e)
             }
         }
+        phoneLog.log("service started without microphone (permission=$micGranted)")
         startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or location)
     }
 

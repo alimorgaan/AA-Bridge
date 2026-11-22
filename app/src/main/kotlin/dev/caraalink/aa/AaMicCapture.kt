@@ -6,9 +6,10 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.util.Log
+import dev.caraalink.diagnostics.DiagnosticLogger
 import dev.caraalink.settings.AppSettings
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 
 /**
  * Captures the phone's mic and streams it to [onChunk] as raw PCM, in the
@@ -27,12 +28,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AaMicCapture(private val context: Context, private val onChunk: (ByteArray) -> Unit) {
 
     companion object {
-        private const val TAG = "AaMicCapture"
         private const val SAMPLE_RATE = 16_000
         // 20ms per chunk at 16kHz/16-bit/mono.
         private const val CHUNK_BYTES = (SAMPLE_RATE / 50) * 2
     }
 
+    private val logger = DiagnosticLogger(context, "aa-mic")
     private val running = AtomicBoolean(false)
     private var thread: Thread? = null
     private var record: AudioRecord? = null
@@ -47,7 +48,7 @@ class AaMicCapture(private val context: Context, private val onChunk: (ByteArray
         }
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         if (minBuf <= 0) {
-            Log.w(TAG, "getMinBufferSize failed: $minBuf")
+            logger.log("getMinBufferSize failed: $minBuf")
             running.set(false)
             return
         }
@@ -59,7 +60,7 @@ class AaMicCapture(private val context: Context, private val onChunk: (ByteArray
             minBuf.coerceAtLeast(CHUNK_BYTES * 4),
         )
         if (rec.state != AudioRecord.STATE_INITIALIZED) {
-            Log.w(TAG, "AudioRecord init failed")
+            logger.log("AudioRecord init failed")
             rec.release()
             running.set(false)
             return
@@ -68,9 +69,23 @@ class AaMicCapture(private val context: Context, private val onChunk: (ByteArray
         rec.startRecording()
         thread = Thread({
             val buf = ByteArray(CHUNK_BYTES)
+            var chunks = 0
+            var peak = 0
             while (running.get()) {
                 val n = rec.read(buf, 0, buf.size)
-                if (n > 0) onChunk(if (n == buf.size) buf.copyOf() else buf.copyOf(n))
+                if (n <= 0) continue
+                for (i in 0 until n - 1 step 2) {
+                    peak = maxOf(peak, abs((buf[i + 1].toInt() shl 8) or (buf[i].toInt() and 0xFF)))
+                }
+                // Once a second: a peak of 0 is Android handing us silence.
+                if (++chunks % 50 == 0) {
+                    // stop() may release the recorder meanwhile.
+                    runCatching {
+                        logger.log("peak=$peak silenced=${rec.activeRecordingConfiguration?.isClientSilenced} device=${rec.routedDevice?.type}")
+                    }
+                    peak = 0
+                }
+                onChunk(if (n == buf.size) buf.copyOf() else buf.copyOf(n))
             }
         }, "AaMicCapture").apply { isDaemon = true; start() }
     }
