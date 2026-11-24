@@ -46,33 +46,6 @@ import dev.caraalink.ui.theme.Dash
 private fun Rtl(content: @Composable () -> Unit) =
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl, content = content)
 
-@Composable
-fun SupportScreen(onBack: () -> Unit, onSupported: () -> Unit) = Rtl {
-    val uri = LocalUriHandler.current
-    val context = LocalContext.current
-    // InstaPay only works with an Egyptian bank; the link below fixes a wrong guess.
-    var egypt by rememberSaveable { mutableStateOf(SupportAsk.inEgypt(context)) }
-    SubScreen(stringResource(R.string.support_action), onBack) {
-        Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(stringResource(R.string.support_amount_hint), color = Dash.Text, fontSize = 17.sp, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(24.dp))
-            if (egypt) {
-                LogoButton(R.drawable.instapay_wordmark_white, Color(SupportAsk.INSTAPAY_COLOR), R.string.support_instapay) {
-                    runCatching { uri.openUri(SupportAsk.INSTAPAY_URL) }
-                }
-            } else {
-                LogoButton(R.drawable.paypal_logo, Color(SupportAsk.PAYPAL_GOLD), R.string.support_paypal) {
-                    runCatching { uri.openUri(SupportAsk.PAYPAL_URL) }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            DashLink(stringResource(if (egypt) R.string.support_not_in_egypt else R.string.support_in_egypt)) { egypt = !egypt }
-            Spacer(Modifier.height(6.dp))
-            DashLink(stringResource(R.string.support_already), onSupported)
-        }
-    }
-}
-
 /** The provider's own button look: its color with its logo. */
 @Composable
 private fun LogoButton(logo: Int, brand: Color, description: Int, onClick: () -> Unit) = Box(
@@ -82,9 +55,14 @@ private fun LogoButton(logo: Int, brand: Color, description: Int, onClick: () ->
     Image(painterResource(logo), contentDescription = stringResource(description), modifier = Modifier.height(26.dp))
 }
 
+/** The ask and the payment in one place: the monthly pop-up, the banner and Settings all open this. */
 @Composable
-fun SupportDialog(onSupport: () -> Unit, onDismiss: () -> Unit, onSupported: () -> Unit) = Dialog(onDismissRequest = onDismiss) {
+fun SupportDialog(onDismiss: () -> Unit, onSupported: () -> Unit) = Dialog(onDismissRequest = onDismiss) {
     Rtl {
+        val uri = LocalUriHandler.current
+        val context = LocalContext.current
+        // InstaPay only works with an Egyptian bank; the link under the button fixes a wrong guess.
+        var egypt by rememberSaveable { mutableStateOf(SupportAsk.inEgypt(context)) }
         Column(
             Modifier.clip(RoundedCornerShape(24.dp)).background(Dash.Tile).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -93,8 +71,17 @@ fun SupportDialog(onSupport: () -> Unit, onDismiss: () -> Unit, onSupported: () 
             Spacer(Modifier.height(14.dp))
             Text(stringResource(R.string.support_popup_body), color = Dash.Text, fontSize = 16.sp, lineHeight = 26.sp, textAlign = TextAlign.Center)
             Spacer(Modifier.height(22.dp))
-            GlowButton(stringResource(R.string.support_action), onSupport)
-            Spacer(Modifier.height(6.dp))
+            // Stays open after paying, so the way back lands on «دعمت قبل كده».
+            if (egypt) {
+                LogoButton(R.drawable.instapay_wordmark_white, Color(SupportAsk.INSTAPAY_COLOR), R.string.support_instapay) {
+                    runCatching { uri.openUri(SupportAsk.INSTAPAY_URL) }
+                }
+            } else {
+                LogoButton(R.drawable.paypal_logo, Color(SupportAsk.PAYPAL_GOLD), R.string.support_paypal) {
+                    runCatching { uri.openUri(SupportAsk.PAYPAL_URL) }
+                }
+            }
+            DashLink(stringResource(if (egypt) R.string.support_not_in_egypt else R.string.support_in_egypt)) { egypt = !egypt }
             DashLink(stringResource(R.string.support_not_now), onDismiss)
             DashLink(stringResource(R.string.support_already), onSupported)
         }

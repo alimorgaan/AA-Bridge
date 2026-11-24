@@ -26,11 +26,10 @@ import dev.caraalink.ui.NearbyCarsScreen
 import dev.caraalink.ui.SettingsScreen
 import dev.caraalink.ui.SetupScreen
 import dev.caraalink.ui.SupportDialog
-import dev.caraalink.ui.SupportScreen
 import dev.caraalink.support.SupportAsk
 import dev.caraalink.ui.theme.AaBridgeTheme
 
-enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT, NEARBY, SUPPORT }
+enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT, NEARBY }
 
 /** The phone app: one Compose activity; also where Android sends the car's USB attach. */
 class MainActivity : ComponentActivity() {
@@ -68,7 +67,7 @@ class MainActivity : ComponentActivity() {
                 val back = {
                     screen = when {
                         screen == Screen.NEARBY -> nearbyFrom
-                        fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT || screen == Screen.SUPPORT) -> Screen.SETTINGS
+                        fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT) -> Screen.SETTINGS
                         else -> Screen.HOME
                     }
                     if (screen == Screen.HOME) fromSettings = false
@@ -81,21 +80,19 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = { screen = Screen.SETTINGS },
                         onOpenNearby = { openNearby(Screen.HOME) },
                         showSupportBanner = supportBanner,
-                        onOpenSupport = { screen = Screen.SUPPORT },
+                        onOpenSupport = { supportPopup = true },
                     )
                     Screen.SETTINGS -> SettingsScreen(
                         onBack = back,
                         onHelp = { fromSettings = true; screen = Screen.HELP },
                         onAbout = { fromSettings = true; screen = Screen.ABOUT },
-                        onSupport = { fromSettings = true; screen = Screen.SUPPORT },
+                        onSupport = { supportPopup = true },
                     )
                     Screen.HELP -> HelpScreen(onBack = back, onRunSetup = { fromSettings = false; screen = Screen.SETUP })
                     Screen.ABOUT -> AboutScreen(onBack = back)
                     Screen.NEARBY -> NearbyCarsScreen(onBack = back, onConnecting = { screen = Screen.HOME })
-                    Screen.SUPPORT -> SupportScreen(onBack = back, onSupported = { markSupported(); back() })
                 }
                 if (supportPopup) SupportDialog(
-                    onSupport = { supportPopup = false; screen = Screen.SUPPORT },
                     onDismiss = { supportPopup = false },
                     onSupported = { markSupported() },
                 )
