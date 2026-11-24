@@ -40,6 +40,11 @@ class CarAALinkApplication : Application() {
         // silently didn't take (older APK still running). Stamping the
         // exact build identity at startup removes that ambiguity for good.
         logger.log("CarAALinkApplication.onCreate build=${dev.caraalink.BuildConfig.GIT_SHA} versionName=${dev.caraalink.BuildConfig.VERSION_NAME}")
+        val androidAuto = runCatching {
+            packageManager.getPackageInfo("com.google.android.projection.gearhead", 0).let { "${it.versionName} (${it.longVersionCode})" }
+        }.getOrDefault("not installed")
+        logger.log("phone=${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} android=${android.os.Build.VERSION.RELEASE} " +
+            "sdk=${android.os.Build.VERSION.SDK_INT} androidAuto=$androidAuto")
     }
 
     /**

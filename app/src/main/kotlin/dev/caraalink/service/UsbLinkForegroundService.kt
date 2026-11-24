@@ -292,7 +292,8 @@ class UsbLinkForegroundService : Service() {
      * [detachReceiver] handles the real "give it 30s in case it's a brief
      * reseat" grace period off the actual USB detach event instead.
      */
-    private var lastPhase: ConnectionPhase? = null
+    // An ERROR left by the last service instance isn't news. Treating it as new stopped a replugged cable's session.
+    private var lastPhase: ConnectionPhase? = ConnectionStateHolder.snapshot.phase
 
     private fun maybeScheduleReconnect(snapshot: ConnectionSnapshot) {
         val previous = lastPhase
