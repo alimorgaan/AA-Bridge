@@ -47,6 +47,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import dev.caraalink.R
 import dev.caraalink.settings.SettingsActivity
 import dev.caraalink.update.UpdateChecker
@@ -121,9 +127,12 @@ private fun DashGroup(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun SettingsRow(icon: Painter, label: String, supporting: String? = null, onClick: () -> Unit) {
+    // Each label reads in its own script's direction (the support row is Arabic on every phone) but stays on the list's side.
+    val side = if (LocalLayoutDirection.current == LayoutDirection.Ltr) TextAlign.Left else TextAlign.Right
+    val own = TextStyle(textDirection = TextDirection.Content, textAlign = side)
     ListItem(
-        headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
-        supportingContent = supporting?.let { { Text(it, color = Dash.Muted) } },
+        headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge.merge(own)) },
+        supportingContent = supporting?.let { { Text(it, color = Dash.Muted, style = LocalTextStyle.current.merge(own)) } },
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick),
