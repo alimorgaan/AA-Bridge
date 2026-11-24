@@ -227,6 +227,8 @@ class QdTransport(
     @Volatile private var reads = 0
     @Volatile private var writeSince = 0L
     @Volatile private var carInfo = false
+    /** The car's first frame was 5A5A. */
+    private var json = false
     private var appStatusResends = 0
     private var appStatusAt = startedAt
     @Volatile private var whitelist = false
@@ -356,6 +358,7 @@ class QdTransport(
     }
 
     private fun onFrame(msgType: Int, payloadFormat: Int, payload: ByteArray) {
+        json = true
         when {
             payloadFormat == QdFrames.FORMAT_JSON -> {
                 val text = String(payload)
@@ -412,7 +415,7 @@ class QdTransport(
     private fun onBin(b: ByteArray, extra: ByteArray) {
         if (!bin) {
             // QDLink keeps to the format of the car's first frame.
-            if (carInfo) return logger.logBytes("QD RX !BIN in a 5A5A session", b, 96)
+            if (json) return logger.logBytes("QD RX !BIN in a 5A5A session", b, 96)
             bin = true
             carInfo = true // Version stands in for CAR_INFO; no handshake timeout.
             logger.log("QD: the car speaks the old !BIN format")

@@ -7,6 +7,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.mock
 
@@ -82,6 +83,22 @@ class QdFramesTest {
         val first = drive(screen, args, play)
         assertEquals(1536 to 576, first.width to first.height)
         assertEquals(first, drive(play))
+    }
+
+    @Test
+    fun aCarThatStartedOn5A5AStaysOnIt() {
+        val onFrame = QdTransport::class.java.getDeclaredMethod("onFrame", Int::class.java, Int::class.java, ByteArray::class.java)
+            .apply { isAccessible = true }
+        val onBin = QdTransport::class.java.getDeclaredMethod("onBin", ByteArray::class.java, ByteArray::class.java)
+            .apply { isAccessible = true }
+        val host = FakeMirrorHost()
+        val qd = QdTransport(mock(UsbAccessoryConnection::class.java), mock(DiagnosticLogger::class.java), host) {}
+        onFrame.invoke(qd, 99, 0, ByteArray(0))
+        listOf(
+            QdBin.block(QdBin.TYPE_SCREEN, 1).putInt(64, 1536).putInt(68, 576),
+            QdBin.block(QdBin.TYPE_CMD, 1).putInt(68, QdBin.CMD_PLAY_STATUS).putInt(72, 1),
+        ).forEach { onBin.invoke(qd, it.array(), ByteArray(0)) }
+        assertTrue(host.capturedConfigs.isEmpty())
     }
 
     @Test
