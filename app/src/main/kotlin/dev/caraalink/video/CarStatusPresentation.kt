@@ -123,12 +123,19 @@ class CarStatusPresentation(
             addView(qrCode(R.drawable.qr_instapay, R.string.support_instapay))
             addView(qrCode(R.drawable.qr_paypal, R.string.support_paypal))
         }
+        // Portrait car screens are too narrow for text beside the codes, so stack them.
+        val portrait = context.resources.displayMetrics.run { heightPixels > widthPixels }
         val row = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = if (portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
             setPadding(dp(32), dp(24), dp(32), dp(24))
-            addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(codes)
+            if (portrait) {
+                addView(words)
+                addView(codes, spaced(top = dp(40)))
+            } else {
+                addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(codes)
+            }
         }
         return FrameLayout(context).apply {
             layoutDirection = View.LAYOUT_DIRECTION_RTL

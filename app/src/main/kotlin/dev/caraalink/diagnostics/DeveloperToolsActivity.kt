@@ -63,7 +63,7 @@ class DeveloperToolsActivity : Activity() {
             dev.caraalink.settings.AppSettings.resetSupportAsks(this)
             Toast.makeText(this, "Support asks reset", Toast.LENGTH_SHORT).show()
         })
-        root.addView(button("Save car support page") { saveCarSupportPage() })
+        root.addView(button("Save car support page") { saveCarSupportPage(1024, 536) { saveCarSupportPage(768, 1024) } })
 
         setContentView(
             ScrollView(this).apply {
@@ -80,9 +80,7 @@ class DeveloperToolsActivity : Activity() {
     }
 
     /** Renders the car page the way the car gets it (a private virtual display) and saves it to Downloads as a PNG. */
-    private fun saveCarSupportPage() {
-        val w = 1024
-        val h = 536
+    private fun saveCarSupportPage(w: Int, h: Int, then: () -> Unit = {}) {
         val reader = android.media.ImageReader.newInstance(w, h, android.graphics.PixelFormat.RGBA_8888, 2)
         val dpi = (minOf(w, h) / 720f * 213).toInt()
         val virtual = getSystemService(android.hardware.display.DisplayManager::class.java)
@@ -94,12 +92,13 @@ class DeveloperToolsActivity : Activity() {
                 val plane = image.planes[0]
                 val padded = android.graphics.Bitmap.createBitmap(plane.rowStride / plane.pixelStride, h, android.graphics.Bitmap.Config.ARGB_8888)
                 padded.copyPixelsFromBuffer(plane.buffer)
-                savePng(android.graphics.Bitmap.createBitmap(padded, 0, 0, w, h), "AABridge-car-support-page.png")
+                savePng(android.graphics.Bitmap.createBitmap(padded, 0, 0, w, h), "AABridge-car-support-page-${w}x$h.png")
             }
             page.dismiss()
             virtual.release()
             reader.close()
             Toast.makeText(this, name?.let { "Saved $it to Downloads" } ?: "Car page capture failed", Toast.LENGTH_LONG).show()
+            then()
         }, 1500)
     }
 
