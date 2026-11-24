@@ -66,11 +66,10 @@ flowchart TD
     C -- yes --> CP[Car page before Android Auto]
     C -- no --> AA[Android Auto opens as today]
     CP -- driver taps افتح Android Auto --> AA
-    PU -- ادعم AA Bridge --> S[Support screen]
-    B --> S
-    R[Settings row, always] --> S
+    B -- tap --> PU
+    R[Settings row, always] -- tap --> PU
+    PU -- InstaPay or PayPal button --> PAY[Payment app opens; pop-up stays open]
     PU -- دعمت قبل كده --> X[supported = true:<br/>pop-up and car page off for good]
-    S -- دعمت قبل كده --> X
 ```
 
 ### State
@@ -88,11 +87,11 @@ Each clock is set when its surface is shown, and the two clocks are independent.
 
 ### Surfaces
 
-**Settings row:** sits next to «حول التطبيق» and opens the Support screen.
+**Settings row:** sits next to «حول التطبيق» and opens the pop-up.
 - Label: «ادعم AA Bridge»
 - Subtitle: «لو الابلكيشن ساعدك واستفدت بيه»
 
-**Home banner:** an accent-colored banner at the top of the home screen, under the header and above the status ring. It shows once helped and stays for good, even after «دعمت قبل كده» (Ali's call). It opens the Support screen.
+**Home banner:** an accent-colored banner at the top of the home screen, under the header and above the status ring. It shows once helped and stays for good, even after «دعمت قبل كده» (Ali's call). It opens the pop-up.
 - Text: «لو الابلكيشن ساعدك، ادعمه بتمن فنجان قهوة»
 
 ```
@@ -109,20 +108,15 @@ Made by Ali Morgan · v1.2.1
 Any open the user starts counts, including from Recents or a notification, and including while a wireless car is connecting. Ali chose this because the moment before a drive is when people are most likely to pay.
 - Title: «لو الابلكيشن ساعدك واستفدت بيه»
 - Body: «أنا علي، اللي عامل AA Bridge، وهيفضل مجاني. تقدر تدعمه بتمن فنجان قهوة، مثلاً 100 جنيه، أو بأي مبلغ يريحك. ومفيش أي إلزام، ودعوة حلوة منك تفرق معايا زيها زي أي مبلغ.»
-- Buttons:
-  - «ادعم AA Bridge» opens the Support screen.
-  - «مش دلوقتي» closes the dialog.
-  - «دعمت قبل كده» sets supported and shows «شكرًا إنك دعمت AA Bridge.»
-
-**Support screen (phone):**
-- Title: «ادعم AA Bridge»
-- Line: «ادعم بأي مبلغ يريحك، مثلاً 100 جنيه». The first version, «اكتب المبلغ...», read like a form to fill in on this screen.
+- The banner and the Settings row open the same pop-up, so payment is one tap from all three. There is no separate Support screen: it was one tap too many (Ali's call).
 - Buttons:
   - In Egypt, one InstaPay button: InstaPay purple (#552B78) with InstaPay's own white wordmark (from instapay.eg). It opens the InstaPay link.
   - Elsewhere, one PayPal button: PayPal's gold (#FFC439) with PayPal's logo (from paypalobjects.com). It opens the PayPal link.
   - A small «مش في مصر؟» or «في مصر؟» link switches between them, for a wrong guess.
   - "In Egypt" means the SIM's country is Egypt; with no SIM, the network's country; with neither, the `Africa/Cairo` time zone. Not the phone's language: many Egyptians run English.
-  - A text button, «دعمت قبل كده», at the bottom, with the same effect as in the pop-up.
+  - «مش دلوقتي» closes the dialog.
+  - «دعمت قبل كده» sets supported and shows «شكرًا إنك دعمت AA Bridge.»
+  - The pop-up stays open after the InstaPay or PayPal button, so coming back after paying lands on «دعمت قبل كده».
 
 **Car page:** a new car status screen, `CarScreen.SUPPORT`. At the point where a session opens Android Auto by itself (once per session, `CarSession`, the `autoLaunchedAa` block), show this page instead when all of these are true: helped, not supported, and at least 30 days since `carPageShownAt` (or never shown). Then set `carPageShownAt`. Tapping «افتح Android Auto» opens Android Auto. The page never opens Android Auto by itself, so `mayAutoOpenAa` must treat SUPPORT like CLOSED. It shows on cable and wireless, in every country.
 
@@ -151,7 +145,7 @@ All ask copy is Arabic, whatever language the phone is set to. Many Egyptians ru
 
 ### Links and QR codes
 
-The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows one card, picked the same way as the phone button. In Egypt it is InstaPay's own QR card for `alimorgangranite@instapay`, exported from the InstaPay app: InstaPay's logo, the handle, and InstaPay's signed link `https://ipn.eg/C/Q/alimorgangranite/instapay?ISIGN=…`. Elsewhere it is a white card with PayPal's logo, a QR code for the PayPal link and `paypal.me/alimorgaan`. On a portrait car screen the card goes under the text. The phone's Support screen shows none, because a phone can't scan its own screen.
+The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows one card, picked the same way as the phone button. In Egypt it is InstaPay's own QR card for `alimorgangranite@instapay`, exported from the InstaPay app: InstaPay's logo, the handle, and InstaPay's signed link `https://ipn.eg/C/Q/alimorgangranite/instapay?ISIGN=…`. Elsewhere it is a white card with PayPal's logo, a QR code for the PayPal link and `paypal.me/alimorgaan`. On a portrait car screen the card goes under the text. The phone pop-up shows none, because a phone can't scan its own screen.
 
 ## Releases
 
