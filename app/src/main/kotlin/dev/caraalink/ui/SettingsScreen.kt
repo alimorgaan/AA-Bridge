@@ -67,7 +67,7 @@ fun SubScreen(title: String, onBack: () -> Unit, content: @Composable ColumnScop
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit, onSupport: () -> Unit) {
     val context = LocalContext.current
     SubScreen(stringResource(R.string.settings), onBack) {
         WirelessCarRow()
@@ -75,8 +75,10 @@ fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) 
             SettingsRow(rememberVectorPainter(Icons.Rounded.Refresh), stringResource(R.string.settings_updates)) {
                 UpdateChecker.checkNow(context, manual = true)
             }
-            SettingsRow(painterResource(R.drawable.ic_help), stringResource(R.string.help), onHelp)
-            SettingsRow(rememberVectorPainter(Icons.Rounded.Info), stringResource(R.string.settings_about), onAbout)
+            SettingsRow(painterResource(R.drawable.ic_help), stringResource(R.string.help), onClick = onHelp)
+            SettingsRow(painterResource(R.drawable.ic_coffee), stringResource(R.string.support_action),
+                supporting = stringResource(R.string.support_if_helped), onClick = onSupport)
+            SettingsRow(rememberVectorPainter(Icons.Rounded.Info), stringResource(R.string.settings_about), onClick = onAbout)
             SettingsRow(painterResource(R.drawable.ic_tune), stringResource(R.string.settings_advanced)) {
                 context.startActivity(Intent(context, SettingsActivity::class.java))
             }
@@ -118,9 +120,10 @@ private fun DashGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SettingsRow(icon: Painter, label: String, onClick: () -> Unit) {
+private fun SettingsRow(icon: Painter, label: String, supporting: String? = null, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
+        supportingContent = supporting?.let { { Text(it, color = Dash.Muted) } },
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick),

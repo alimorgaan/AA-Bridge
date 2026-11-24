@@ -25,9 +25,12 @@ import dev.caraalink.ui.HomeScreen
 import dev.caraalink.ui.NearbyCarsScreen
 import dev.caraalink.ui.SettingsScreen
 import dev.caraalink.ui.SetupScreen
+import dev.caraalink.ui.SupportDialog
+import dev.caraalink.ui.SupportScreen
+import dev.caraalink.support.SupportAsk
 import dev.caraalink.ui.theme.AaBridgeTheme
 
-enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT, NEARBY }
+enum class Screen { SETUP, HOME, SETTINGS, HELP, ABOUT, NEARBY, SUPPORT }
 
 /** The phone app: one Compose activity; also where Android sends the car's USB attach. */
 class MainActivity : ComponentActivity() {
@@ -35,6 +38,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
     }
+
+    private var supportBanner by mutableStateOf(false)
+    private var supportPopup by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,7 +65,7 @@ class MainActivity : ComponentActivity() {
                 val back = {
                     screen = when {
                         screen == Screen.NEARBY -> nearbyFrom
-                        fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT) -> Screen.SETTINGS
+                        fromSettings && (screen == Screen.HELP || screen == Screen.ABOUT || screen == Screen.SUPPORT) -> Screen.SETTINGS
                         else -> Screen.HOME
                     }
                     if (screen == Screen.HOME) fromSettings = false
@@ -71,16 +77,25 @@ class MainActivity : ComponentActivity() {
                     Screen.HOME -> HomeScreen(
                         onOpenSettings = { screen = Screen.SETTINGS },
                         onOpenNearby = { openNearby(Screen.HOME) },
+                        showSupportBanner = supportBanner,
+                        onOpenSupport = { screen = Screen.SUPPORT },
                     )
                     Screen.SETTINGS -> SettingsScreen(
                         onBack = back,
                         onHelp = { fromSettings = true; screen = Screen.HELP },
                         onAbout = { fromSettings = true; screen = Screen.ABOUT },
+                        onSupport = { fromSettings = true; screen = Screen.SUPPORT },
                     )
                     Screen.HELP -> HelpScreen(onBack = back, onRunSetup = { fromSettings = false; screen = Screen.SETUP })
                     Screen.ABOUT -> AboutScreen(onBack = back)
                     Screen.NEARBY -> NearbyCarsScreen(onBack = back, onConnecting = { screen = Screen.HOME })
+                    Screen.SUPPORT -> SupportScreen(onBack = back, onSupported = { markSupported(); back() })
                 }
+                if (supportPopup) SupportDialog(
+                    onSupport = { supportPopup = false; screen = Screen.SUPPORT },
+                    onDismiss = { supportPopup = false },
+                    onSupported = { markSupported() },
+                )
             }
         }
     }
@@ -174,12 +189,32 @@ class MainActivity : ComponentActivity() {
     // the attach intent here instead of onCreate.
     override fun onStart() {
         super.onStart()
+        val helped = AppSettings.supportHelped(this)
+        val supported = AppSettings.supported(this)
+        supportBanner = helped && !supported
+        val now = System.currentTimeMillis()
+        if (!launchedByCar(intent) && SupportAsk.isDue(helped, supported, AppSettings.supportPopupShownAt(this), now)) {
+            supportPopup = true
+            AppSettings.setSupportPopupShownAt(this, now)
+        }
         // Opening the app connects to the remembered car; the cable and a running attempt both win.
         // Without Nearby devices the scan can only fail; Home's Connect without a cable asks for it instead.
         val canScan = checkSelfPermission(dev.caraalink.ui.NEARBY_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (canScan && dev.caraalink.ui.shouldAutoConnect(dev.caraalink.connection.ConnectionStateHolder.snapshot, AppSettings.wirelessCar(this) != null)) {
             dev.caraalink.ui.startWireless(this)
         }
+    }
+
+    /** The car's USB attach opens the app right as the driver sets off; no pop-up then. */
+    private fun launchedByCar(intent: Intent?): Boolean =
+        intent?.action == UsbManager.ACTION_USB_ACCESSORY_ATTACHED &&
+            intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0
+
+    private fun markSupported() {
+        AppSettings.setSupported(this)
+        supportBanner = false
+        supportPopup = false
+        Toast.makeText(this, R.string.support_thanks, Toast.LENGTH_LONG).show()
     }
 
     override fun onNewIntent(intent: Intent) {
