@@ -1,5 +1,6 @@
 package dev.caraalink.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,25 +49,37 @@ private fun Rtl(content: @Composable () -> Unit) =
 @Composable
 fun SupportScreen(onBack: () -> Unit, onSupported: () -> Unit) = Rtl {
     val uri = LocalUriHandler.current
+    val context = LocalContext.current
+    // InstaPay only works with an Egyptian bank; the link below fixes a wrong guess.
+    var egypt by rememberSaveable { mutableStateOf(SupportAsk.inEgypt(context)) }
     SubScreen(stringResource(R.string.support_action), onBack) {
         Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(stringResource(R.string.support_amount_hint), color = Dash.Text, fontSize = 17.sp, textAlign = TextAlign.Center)
             Spacer(Modifier.height(24.dp))
-            BrandButton(stringResource(R.string.support_instapay), Color(SupportAsk.INSTAPAY_COLOR)) { runCatching { uri.openUri(SupportAsk.INSTAPAY_URL) } }
-            Spacer(Modifier.height(14.dp))
-            BrandButton(stringResource(R.string.support_paypal), Color(SupportAsk.PAYPAL_COLOR)) { runCatching { uri.openUri(SupportAsk.PAYPAL_URL) } }
-            Spacer(Modifier.height(20.dp))
+            if (egypt) {
+                LogoButton(R.drawable.instapay_wordmark_white, Color(SupportAsk.INSTAPAY_COLOR), R.string.support_instapay) {
+                    runCatching { uri.openUri(SupportAsk.INSTAPAY_URL) }
+                }
+            } else {
+                LogoButton(R.drawable.paypal_logo, Color(SupportAsk.PAYPAL_GOLD), R.string.support_paypal) {
+                    runCatching { uri.openUri(SupportAsk.PAYPAL_URL) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            DashLink(stringResource(if (egypt) R.string.support_not_in_egypt else R.string.support_in_egypt)) { egypt = !egypt }
+            Spacer(Modifier.height(6.dp))
             DashLink(stringResource(R.string.support_already), onSupported)
         }
     }
 }
 
+/** The provider's own button look: its color with its logo. */
 @Composable
-private fun BrandButton(text: String, brand: Color, onClick: () -> Unit) = Box(
-    Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(16.dp)).background(brand).clickable(onClick = onClick),
+private fun LogoButton(logo: Int, brand: Color, description: Int, onClick: () -> Unit) = Box(
+    Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(29.dp)).background(brand).clickable(onClick = onClick),
     contentAlignment = Alignment.Center,
 ) {
-    Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+    Image(painterResource(logo), contentDescription = stringResource(description), modifier = Modifier.height(26.dp))
 }
 
 @Composable

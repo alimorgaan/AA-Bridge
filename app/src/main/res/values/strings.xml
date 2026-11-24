@@ -115,6 +115,8 @@
     <string name="support_amount_hint" translatable="false">ادعم بأي مبلغ يريحك، مثلاً 100 جنيه</string>
     <string name="support_instapay" translatable="false">InstaPay (داخل مصر)</string>
     <string name="support_paypal" translatable="false">PayPal (خارج مصر)</string>
+    <string name="support_not_in_egypt" translatable="false">مش في مصر؟</string>
+    <string name="support_in_egypt" translatable="false">في مصر؟</string>
     <string name="car_support_line" translatable="false">ادعمه بتمن فنجان قهوة، مثلاً 100 جنيه</string>
     <string name="car_support_open_aa" translatable="false">افتح Android Auto</string>
 </resources>

@@ -9,9 +9,10 @@ object SupportAsk {
     const val PAYPAL_URL = "https://paypal.me/alimorgaan"
     const val INTERVAL_MS = 30L * 24 * 60 * 60 * 1000
 
-    // Brand colors: InstaPay purple sampled from its QR export, PayPal navy.
+    // Brand colors: InstaPay purple sampled from its QR export, PayPal navy and button gold.
     val INSTAPAY_COLOR: Int = 0xFF552B78.toInt()
     val PAYPAL_COLOR: Int = 0xFF003087.toInt()
+    val PAYPAL_GOLD: Int = 0xFFFFC439.toInt()
 
     /** SIM first (Egyptians abroad still bank in Egypt), then the network, then a Wi-Fi-only phone's time zone. */
     fun inEgypt(simCountry: String?, networkCountry: String?, timeZoneId: String): Boolean = when {
