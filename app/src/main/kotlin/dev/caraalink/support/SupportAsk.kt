@@ -5,7 +5,7 @@ import android.telephony.TelephonyManager
 
 /** Where support goes, and when the monthly asks are due. */
 object SupportAsk {
-    const val INSTAPAY_URL = "https://ipn.eg/S/alimorgaan/instapay/4NfOYd"
+    const val INSTAPAY_URL = "https://ipn.eg/S/alimorgangranite/instapay/0efSwz"
     const val PAYPAL_URL = "https://paypal.me/alimorgaan"
     const val INTERVAL_MS = 30L * 24 * 60 * 60 * 1000
 

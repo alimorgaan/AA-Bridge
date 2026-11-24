@@ -142,7 +142,7 @@ class CarStatusPresentation(
         }
     }
 
-    /** InstaPay's own QR card for alimorgaan@instapay: its logo, handle and signed link. */
+    /** InstaPay's own QR card for alimorgangranite@instapay: its logo, handle and signed link. */
     private fun instapayCard() = ImageView(context).apply {
         setImageResource(R.drawable.instapay_card)
         adjustViewBounds = true

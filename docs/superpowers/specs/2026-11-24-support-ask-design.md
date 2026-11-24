@@ -151,7 +151,7 @@ All ask copy is Arabic, whatever language the phone is set to. Many Egyptians ru
 
 ### Links and QR codes
 
-The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows one card, picked the same way as the phone button. In Egypt it is InstaPay's own QR card for `alimorgaan@instapay`, exported from the InstaPay app: InstaPay's logo, the handle, and InstaPay's signed link `https://ipn.eg/C/Q/alimorgaan/instapay?ISIGN=…`. Elsewhere it is a white card with PayPal's logo, a QR code for the PayPal link and `paypal.me/alimorgaan`. On a portrait car screen the card goes under the text. The phone's Support screen shows none, because a phone can't scan its own screen.
+The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows one card, picked the same way as the phone button. In Egypt it is InstaPay's own QR card for `alimorgangranite@instapay`, exported from the InstaPay app: InstaPay's logo, the handle, and InstaPay's signed link `https://ipn.eg/C/Q/alimorgangranite/instapay?ISIGN=…`. Elsewhere it is a white card with PayPal's logo, a QR code for the PayPal link and `paypal.me/alimorgaan`. On a portrait car screen the card goes under the text. The phone's Support screen shows none, because a phone can't scan its own screen.
 
 ## Releases
 
@@ -166,7 +166,7 @@ Attach the APK twice to each GitHub release: as `AA-Bridge-<version>.apk`, so a 
 
 ## Links
 
-- InstaPay: `https://ipn.eg/S/alimorgaan/instapay/4NfOYd`
+- InstaPay: `https://ipn.eg/S/alimorgangranite/instapay/0efSwz`
 - PayPal: `https://paypal.me/alimorgaan`
 
 The PayPal QR code is generated from its https link. InstaPay uses its own exported card: its signed link was decoded and opens from any phone's camera. If Ali regenerates the card in InstaPay, replace `instapay_card.webp`.
