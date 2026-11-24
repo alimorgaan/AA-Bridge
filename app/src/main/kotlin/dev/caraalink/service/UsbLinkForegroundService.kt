@@ -77,6 +77,7 @@ class UsbLinkForegroundService : Service() {
     private var stopping = false
 
     private val wirelessLog by lazy { DiagnosticLogger(this, "wireless") }
+    private val phoneLog by lazy { DiagnosticLogger(this, "phone") }
     private var wirelessLink: WirelessLink? = null
     private var wirelessTarget: RememberedCar? = null
     private var connectingTo: String? = null
@@ -115,9 +116,19 @@ class UsbLinkForegroundService : Service() {
         }
     }
 
+    // Testers report car blackouts on screen lock; this puts the lock next to them in the log.
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) =
+            phoneLog.log(intent.action.orEmpty().substringAfterLast('.'))
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        })
         ConnectionStateHolder.addListener(stateListener)
         val filter = IntentFilter(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -221,9 +232,12 @@ class UsbLinkForegroundService : Service() {
         sniffer?.stop()
         adbProbe?.stop()
         session?.stop()
-        val s = CarSession(this, accessory) { reason ->
+        lateinit var s: CarSession
+        s = CarSession(this, accessory) { reason ->
             handler.post {
                 Log.i(TAG, "session ended: $reason")
+                // A replaced session's end must not stop the service under the new one.
+                if (session !== s) return@post
                 session = null
                 if (!stopping && isTransportIoFailure(reason) && pendingAccessory != null) {
                     scheduleTransportReconnect()
@@ -262,6 +276,7 @@ class UsbLinkForegroundService : Service() {
         detachStopRunnable?.let { handler.removeCallbacks(it) }
         detachStopRunnable = null
         runCatching { unregisterReceiver(detachReceiver) }
+        runCatching { unregisterReceiver(screenReceiver) }
         sniffer?.stop()
         adbProbe?.stop()
         releaseWakeLock()
@@ -303,11 +318,13 @@ class UsbLinkForegroundService : Service() {
             try {
                 startForeground(NOTIFICATION_ID, notification,
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or location)
+                phoneLog.log("service started with microphone")
                 return
             } catch (e: SecurityException) {
                 Log.w(TAG, "startForeground with microphone refused -- retrying connectedDevice only", e)
             }
         }
+        phoneLog.log("service started without microphone (permission=$micGranted)")
         startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or location)
     }
 

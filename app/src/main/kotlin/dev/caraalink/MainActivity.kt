@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Restarted after a crash: $summary", Toast.LENGTH_LONG).show()
         }
         dev.caraalink.update.UpdateChecker.checkIfDue(this)
-        maybeAutoStartOnAttach(intent)
+        maybeAutoStartOnAttach(intent, recreated = savedInstanceState != null)
         maybeStartAaTls(intent)
         val firstScreen = if (AppSettings.setupComplete(this)) Screen.HOME else Screen.SETUP
         setContent {
@@ -157,8 +157,10 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, "AA TLS receiver: ${mode.name}/${role.name}", Toast.LENGTH_SHORT).show()
     }
 
-    private fun maybeAutoStartOnAttach(intent: Intent?) {
+    private fun maybeAutoStartOnAttach(intent: Intent?, recreated: Boolean = false) {
         if (intent?.action != UsbManager.ACTION_USB_ACCESSORY_ATTACHED) return
+        val fromRecents = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (dev.caraalink.ui.isRepeatedAttach(recreated || fromRecents, dev.caraalink.connection.ConnectionStateHolder.snapshot)) return
         @Suppress("DEPRECATION")
         val accessory = intent.getParcelableExtra<UsbAccessory>(UsbManager.EXTRA_ACCESSORY) ?: return
         Log.i(TAG, "maybeAutoStartOnAttach: launched via attach intent, starting car session")

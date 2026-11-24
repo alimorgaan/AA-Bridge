@@ -238,9 +238,9 @@ class CarSession(
      * socket can stay open with no data ever arriving again (head unit
      * reboot on the AA side, a wedged gearhead service, etc.) without
      * throwing anything AaSessionProbe's own reconnect logic would catch --
-     * that logic only fires on an actual socket/TLS error. This polls
-     * [AaSessionProbe.lastVideoFrameAt] and, if it's gone stale while the
-     * car is actually showing the AA screen, tears down and restarts the
+     * that logic only fires on an actual socket/TLS error. This pings a
+     * session whose video went quiet and, if [aaStalled] says it's dead while
+     * the car is actually showing the AA screen, tears down and restarts the
      * whole session instead of leaving a dead picture up indefinitely.
      */
     private val aaWatchdog = android.os.Handler(android.os.Looper.getMainLooper())
@@ -309,8 +309,11 @@ class CarSession(
                     }
                     val stallThreshold = (AA_WATCHDOG_STALL_MS * (1 shl watchdogRestartStreak.coerceAtMost(3)))
                         .coerceAtMost(AA_WATCHDOG_STALL_MAX_MS)
-                    if (staleMs > stallThreshold) {
-                        logger.log("AA watchdog: no video frame in ${staleMs}ms (threshold ${stallThreshold}ms, " +
+                    // Read before the ping goes out: its answer counts on the next tick.
+                    val silentMs = System.currentTimeMillis() - probe.lastMessageAt
+                    if (staleMs >= AA_WATCHDOG_CHECK_MS) probe.ping()
+                    if (aaStalled(silentMs, staleMs, stallThreshold)) {
+                        logger.log("AA watchdog: no video frame in ${staleMs}ms, silent for ${silentMs}ms (threshold ${stallThreshold}ms, " +
                             "streak $watchdogRestartStreak) -- restarting session")
                         dev.caraalink.diagnostics.PerfStats.aaReconnects++
                         watchdogRestartStreak++
@@ -336,6 +339,8 @@ class CarSession(
         // a full reconnect, so arm the bus SettingsActivity signals through.
         dev.caraalink.aa.AaReconnectBus.onVideoSettingsChanged = {
             logger.log("AA video settings changed -- reconnecting session")
+            // A tick before the reopen would take the stopped session for an exit and stay on Closed.
+            aaWatchdog.removeCallbacks(aaWatchdogTick)
             dev.caraalink.aa.AaSessionProbe.active?.stop()
             // A warm restart needs a moment for gearhead to tear down the old session.
             aaWatchdog.postDelayed({ if (mayAutoOpenAa(released, display.screen)) openAndroidAuto() }, 1500)
@@ -568,6 +573,7 @@ class CarSession(
         private const val AA_WATCHDOG_STALL_MS = 10_000L
         private const val AA_WATCHDOG_STARTUP_MS = 60_000L
         private const val AA_WATCHDOG_STALL_MAX_MS = 60_000L
+        private const val AA_VIDEO_STALL_MS = 90_000L
         private const val SERVER_POLL_MS = 2_000L
         private const val NOT_RESPONDING_RETRY_MS = 5_000L
 
@@ -576,6 +582,10 @@ class CarSession(
         /** Automatic reopens (restarts, retries, polls) must not undo an unplug or a deliberate exit. */
         internal fun mayAutoOpenAa(released: Boolean, screen: CarScreen): Boolean =
             !released && screen != CarScreen.CLOSED
+
+        /** A still screen is fine while Android Auto answers pings; its clock still redraws every minute. */
+        internal fun aaStalled(silentMs: Long, videoStaleMs: Long, silentLimitMs: Long): Boolean =
+            silentMs > silentLimitMs || videoStaleMs > AA_VIDEO_STALL_MS
 
         /** Reconnect backoff that long means Android Auto's server is gone, not just restarting. */
         internal fun lostServer(connectionActive: Boolean, inactiveForMs: Long): Boolean =

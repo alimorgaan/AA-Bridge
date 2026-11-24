@@ -117,9 +117,14 @@ class AaSessionProbe(
     @Volatile
     private var cachedKeyframe: ByteArray? = null
 
-    /** Wall-clock time of the last video DATA frame actually received -- the watchdog's stall signal. */
+    /** Wall-clock time of the last video DATA frame actually received. */
     @Volatile
     var lastVideoFrameAt: Long = 0L
+        private set
+
+    /** Wall-clock time of the last message of any kind: a still screen sends no video but still answers pings. */
+    @Volatile
+    var lastMessageAt: Long = 0L
         private set
 
     /** True only while a session is up, not during reconnect waits. */
@@ -260,6 +265,18 @@ class AaSessionProbe(
     /** Single-finger convenience overload -- same as `sendTouch(listOf(Triple(x,y,pointerId)), 0, action)`. */
     fun sendTouch(x: Int, y: Int, action: Int, pointerId: Int = 0) {
         sendTouch(listOf(Triple(x, y, pointerId)), 0, action)
+    }
+
+    /** Makes a live phone send something, so the watchdog can tell a still screen from a dead session. */
+    fun ping() {
+        val channel = activeChannel ?: return
+        runCatching { touchExecutor.execute { sendPing(channel) } } // Rejected once stop() ran.
+    }
+
+    private fun sendPing(channel: AaTlsChannel) {
+        val ping = AaProtobuf.Writer().varint(1, System.currentTimeMillis() * 1000).int(2, 0).build()
+        runCatching { channel.sendControlEncrypted(AaFraming.MSG_PING_REQUEST, ping) }
+            .onFailure { logger.log("proactive PING_REQUEST send failed: $it") }
     }
 
     fun start() {
@@ -459,6 +476,7 @@ class AaSessionProbe(
             logger.log("TX AUTH_COMPLETE status=0")
             channel.sendControlPlain(AaFraming.MSG_AUTH_COMPLETE, authResponse)
             lastVideoFrameAt = System.currentTimeMillis() // grace period before the watchdog can call this stale
+            lastMessageAt = lastVideoFrameAt
             isConnectionActive = true
 
             var index = 0
@@ -504,12 +522,11 @@ class AaSessionProbe(
                 index++
                 if (System.currentTimeMillis() - lastPingSentAt > 5_000) {
                     lastPingSentAt = System.currentTimeMillis()
-                    val ping = AaProtobuf.Writer().varint(1, lastPingSentAt * 1000).int(2, 0).build()
-                    runCatching { channel.sendControlEncrypted(AaFraming.MSG_PING_REQUEST, ping) }
-                        .onFailure { logger.log("proactive PING_REQUEST send failed: $it") }
+                    sendPing(channel)
                     if (nightSensorStarted) sendNightIfChanged()
                 }
                 val message = channel.receiveMessage()
+                lastMessageAt = System.currentTimeMillis()
                 if (message.channelId != AaFraming.CHANNEL_CONTROL) {
                     val chId = AaFraming.controlMessageId(message.payload)
                     val chBody = if (message.payload.size >= 2) message.payload.copyOfRange(2, message.payload.size) else ByteArray(0)
@@ -662,6 +679,17 @@ class AaSessionProbe(
                         // root cause of "no music, ever" (not a routing or
                         // AudioTrack-timing bug after all).
                         sendAvAck(channel, message.channelId)
+                    } else if (chId == AaFraming.MSG_MEDIA_VIDEO_FOCUS_REQUEST) {
+                        // VideoFocusRequest{mode=2, reason=3}. NATIVE(2) is the driver's Exit, as openauto and headunit-revived
+                        // read it, unless the reason is PHONE_SCREEN_OFF(1). A phone sent one before any video, so video first.
+                        val fields = AaProtobuf.parse(chBody)
+                        val mode = fields.firstOrNull { it.number == 2 }?.varint
+                        val reason = fields.firstOrNull { it.number == 3 }?.varint
+                        logger.log("RX VIDEO_FOCUS_REQUEST mode=$mode reason=$reason")
+                        if (mode == 2L && reason != 1L && hasReceivedVideo) stop() else {
+                            val focus = AaProtobuf.Writer().int(1, 1).bool(2, false).build() // PROJECTED
+                            channel.sendChannelSpecific(message.channelId, AaFraming.MSG_MEDIA_VIDEO_FOCUS_NOTIFICATION, focus)
+                        }
                     } else if (chId == AaFraming.MSG_MEDIA_MICROPHONE_REQUEST &&
                         message.channelId == AaServiceDiscovery.CHANNEL_MEDIA_SOURCE_MICROPHONE
                     ) {
