@@ -21,4 +21,13 @@ class SupportAskTest {
     fun aClockMovedBackwardsStillAsks() {
         assertTrue(SupportAsk.isDue(helped = true, supported = false, lastShownAt = now + 5 * day, now = now))
     }
+
+    @Test
+    fun egyptComesFromTheSimThenTheNetworkThenTheTimeZone() {
+        assertTrue(SupportAsk.inEgypt(simCountry = "EG", networkCountry = "sa", timeZoneId = "Asia/Riyadh"))
+        assertFalse(SupportAsk.inEgypt(simCountry = "ae", networkCountry = "eg", timeZoneId = "Africa/Cairo"))
+        assertTrue(SupportAsk.inEgypt(simCountry = "", networkCountry = "eg", timeZoneId = "Europe/Paris"))
+        assertTrue(SupportAsk.inEgypt(simCountry = null, networkCountry = null, timeZoneId = "Africa/Cairo"))
+        assertFalse(SupportAsk.inEgypt(simCountry = null, networkCountry = "", timeZoneId = "Africa/Tunis"))
+    }
 }
