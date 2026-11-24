@@ -118,8 +118,10 @@ Any open the user starts counts, including from Recents or a notification, and i
 - Title: «ادعم AA Bridge»
 - Line: «ادعم بأي مبلغ يريحك، مثلاً 100 جنيه». The first version, «اكتب المبلغ...», read like a form to fill in on this screen.
 - Buttons:
-  - «InstaPay (داخل مصر)» opens the InstaPay link. Filled InstaPay purple (#552B78), white text.
-  - «PayPal (خارج مصر)» opens the PayPal link. Filled PayPal navy (#003087), white text.
+  - In Egypt, one InstaPay button: InstaPay purple (#552B78) with InstaPay's own white wordmark (from instapay.eg). It opens the InstaPay link.
+  - Elsewhere, one PayPal button: PayPal's gold (#FFC439) with PayPal's logo (from paypalobjects.com). It opens the PayPal link.
+  - A small «مش في مصر؟» or «في مصر؟» link switches between them, for a wrong guess.
+  - "In Egypt" means the SIM's country is Egypt; with no SIM, the network's country; with neither, the `Africa/Cairo` time zone. Not the phone's language: many Egyptians run English.
   - A text button, «دعمت قبل كده», at the bottom, with the same effect as in the pop-up.
 
 **Car page:** a new car status screen, `CarScreen.SUPPORT`. At the point where a session opens Android Auto by itself (once per session, `CarSession`, the `autoLaunchedAa` block), show this page instead when all of these are true: helped, not supported, and at least 30 days since `carPageShownAt` (or never shown). Then set `carPageShownAt`. Tapping «افتح Android Auto» opens Android Auto. The page never opens Android Auto by itself, so `mayAutoOpenAa` must treat SUPPORT like CLOSED. It shows on cable and wireless, in every country.
@@ -136,10 +138,10 @@ The page also never shows while an Android Auto session is already running (`AaS
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│ ▓▓▓▓▓▓   ▓▓▓▓▓▓          لو الابلكيشن ساعدك واستفدت بيه │
-│ ▓QR▓▓▓   ▓QR▓▓▓    ادعمه بتمن فنجان قهوة، مثلاً 100 جنيه │
-│ InstaPay  PayPal                                       │
-│ (داخل مصر) (خارج مصر)            [ افتح Android Auto ]    │
+│ ┌───────────┐            لو الابلكيشن ساعدك واستفدت بيه │
+│ │ InstaPay  │      ادعمه بتمن فنجان قهوة، مثلاً 100 جنيه │
+│ │ QR card   │                                          │
+│ └───────────┘                  [ افتح Android Auto ]    │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -149,7 +151,7 @@ All ask copy is Arabic, whatever language the phone is set to. Many Egyptians ru
 
 ### Links and QR codes
 
-The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows a QR code for each link, framed in its brand color, with the brand's name in white on that color underneath. Brand colors and names only, no logo files: PayPal publishes logo rules for merchants, InstaPay publishes none. The phone's Support screen shows none, because a phone can't scan its own screen.
+The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows one card, picked the same way as the phone button. In Egypt it is InstaPay's own QR card for `alimorgaan@instapay`, exported from the InstaPay app: InstaPay's logo, the handle, and InstaPay's signed link `https://ipn.eg/C/Q/alimorgaan/instapay?ISIGN=…`. Elsewhere it is a white card with PayPal's logo, a QR code for the PayPal link and `paypal.me/alimorgaan`. On a portrait car screen the card goes under the text. The phone's Support screen shows none, because a phone can't scan its own screen.
 
 ## Releases
 
@@ -167,4 +169,4 @@ Attach the APK twice to each GitHub release: as `AA-Bridge-<version>.apk`, so a 
 - InstaPay: `https://ipn.eg/S/alimorgaan/instapay/4NfOYd`
 - PayPal: `https://paypal.me/alimorgaan`
 
-Generate both car QR codes from these https links. Don't reuse the QR image the InstaPay app exports: its contents weren't checked, and a plain web link opens from any phone's camera.
+The PayPal QR code is generated from its https link. InstaPay uses its own exported card: its signed link was decoded and opens from any phone's camera. If Ali regenerates the card in InstaPay, replace `instapay_card.webp`.
