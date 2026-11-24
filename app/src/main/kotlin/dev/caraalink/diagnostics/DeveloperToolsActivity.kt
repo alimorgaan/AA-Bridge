@@ -63,7 +63,10 @@ class DeveloperToolsActivity : Activity() {
             dev.caraalink.settings.AppSettings.resetSupportAsks(this)
             Toast.makeText(this, "Support asks reset", Toast.LENGTH_SHORT).show()
         })
-        root.addView(button("Save car support page") { saveCarSupportPage(1024, 536) { saveCarSupportPage(768, 1024) } })
+        root.addView(button("Save car support pages") {
+            saveCarSupportPage(1024, 536, egypt = true) { saveCarSupportPage(768, 1024, egypt = true) {
+                saveCarSupportPage(1024, 536, egypt = false) { saveCarSupportPage(768, 1024, egypt = false) } } }
+        })
 
         setContentView(
             ScrollView(this).apply {
@@ -80,19 +83,19 @@ class DeveloperToolsActivity : Activity() {
     }
 
     /** Renders the car page the way the car gets it (a private virtual display) and saves it to Downloads as a PNG. */
-    private fun saveCarSupportPage(w: Int, h: Int, then: () -> Unit = {}) {
+    private fun saveCarSupportPage(w: Int, h: Int, egypt: Boolean, then: () -> Unit = {}) {
         val reader = android.media.ImageReader.newInstance(w, h, android.graphics.PixelFormat.RGBA_8888, 2)
         val dpi = (minOf(w, h) / 720f * 213).toInt()
         val virtual = getSystemService(android.hardware.display.DisplayManager::class.java)
             .createVirtualDisplay("car-page-preview", w, h, dpi, reader.surface, 0)
-        val page = dev.caraalink.video.CarStatusPresentation(this, virtual.display, dev.caraalink.video.CarScreen.SUPPORT) {}
+        val page = dev.caraalink.video.CarStatusPresentation(this, virtual.display, dev.caraalink.video.CarScreen.SUPPORT, onOpenAa = {}, egypt = egypt)
         page.show()
         window.decorView.postDelayed({
             val name = reader.acquireLatestImage()?.use { image ->
                 val plane = image.planes[0]
                 val padded = android.graphics.Bitmap.createBitmap(plane.rowStride / plane.pixelStride, h, android.graphics.Bitmap.Config.ARGB_8888)
                 padded.copyPixelsFromBuffer(plane.buffer)
-                savePng(android.graphics.Bitmap.createBitmap(padded, 0, 0, w, h), "AABridge-car-support-page-${w}x$h.png")
+                savePng(android.graphics.Bitmap.createBitmap(padded, 0, 0, w, h), "AABridge-car-support-page-${if (egypt) "egypt" else "abroad"}-${w}x$h.png")
             }
             page.dismiss()
             virtual.release()

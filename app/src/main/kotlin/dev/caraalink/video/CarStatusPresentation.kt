@@ -27,6 +27,8 @@ class CarStatusPresentation(
     display: Display,
     private val screen: CarScreen,
     private val onOpenAa: () -> Unit,
+    /** Which payment the support page shows; Developer tools overrides it to capture both. */
+    private val egypt: Boolean = dev.caraalink.support.SupportAsk.inEgypt(context),
 ) : Presentation(context, display) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,11 +120,7 @@ class CarStatusPresentation(
             addView(text(R.string.car_support_line, 20f, MUTED))
             addView(openButton(R.string.car_support_open_aa), spaced(top = dp(28)))
         }
-        val codes = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(qrCode(R.drawable.qr_instapay, R.string.support_instapay, dev.caraalink.support.SupportAsk.INSTAPAY_COLOR))
-            addView(qrCode(R.drawable.qr_paypal, R.string.support_paypal, dev.caraalink.support.SupportAsk.PAYPAL_COLOR))
-        }
+        val codes = if (egypt) instapayCard() else paypalCard()
         // Portrait car screens are too narrow for text beside the codes, so stack them.
         val portrait = context.resources.displayMetrics.run { heightPixels > widthPixels }
         val row = LinearLayout(context).apply {
@@ -144,24 +142,31 @@ class CarStatusPresentation(
         }
     }
 
-    /** A QR code framed in its brand color, with the brand's name on that color underneath. */
-    private fun qrCode(image: Int, caption: Int, brand: Int) = LinearLayout(context).apply {
+    /** InstaPay's own QR card for alimorgaan@instapay: its logo, handle and signed link. */
+    private fun instapayCard() = ImageView(context).apply {
+        setImageResource(R.drawable.instapay_card)
+        adjustViewBounds = true
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(CARD_DP))
+        background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(14).toFloat() }
+        clipToOutline = true
+    }
+
+    /** A white card in the same style: PayPal's logo, the paypal.me QR code and the link. */
+    private fun paypalCard() = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(dp(12), 0, dp(12), 0)
-        addView(ImageView(context).apply {
-            setImageResource(image)
-            setPadding(dp(6), dp(6), dp(6), dp(6))
-            background = GradientDrawable().apply { setColor(brand); cornerRadius = dp(10).toFloat() }
-        }, LinearLayout.LayoutParams(dp(QR_DP + 12), dp(QR_DP + 12)))
+        setPadding(dp(20), dp(18), dp(20), dp(16))
+        background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(14).toFloat() }
+        addView(ImageView(context).apply { setImageResource(R.drawable.paypal_logo); adjustViewBounds = true },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)))
+        addView(ImageView(context).apply { setImageResource(R.drawable.qr_paypal) },
+            LinearLayout.LayoutParams(dp(QR_DP), dp(QR_DP)).apply { topMargin = dp(10) })
         addView(TextView(context).apply {
-            setText(caption)
-            textSize = 16f
-            setTextColor(Color.WHITE)
+            text = "paypal.me/alimorgaan"
+            textSize = 15f
+            setTextColor(Color.parseColor("#1E2A3A"))
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(dp(14), dp(6), dp(14), dp(6))
-            background = GradientDrawable().apply { setColor(brand); cornerRadius = dp(14).toFloat() }
-        }, spaced(top = dp(10)))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
     }
 
     private fun openButton(label: Int = R.string.car_open_aa) = TextView(context).apply {
@@ -192,7 +197,8 @@ class CarStatusPresentation(
         val MUTED = Color.parseColor("#8AA3A8")
         val TEXT = Color.parseColor("#E8F1F2")
         val AMBER = Color.parseColor("#FBBF24")
-        // About 4.5 car pixels per QR module, so a phone camera picks it up from the passenger seat.
-        const val QR_DP = 170
+        // About 5 car pixels per QR module, so a phone camera picks it up from the passenger seat.
+        const val QR_DP = 200
+        const val CARD_DP = 360
     }
 }
