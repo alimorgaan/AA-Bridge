@@ -63,7 +63,7 @@ class DeveloperToolsActivity : Activity() {
             dev.caraalink.settings.AppSettings.resetSupportAsks(this)
             Toast.makeText(this, "Support asks reset", Toast.LENGTH_SHORT).show()
         })
-        root.addView(button("Show car support page") { showCarSupportPage() })
+        root.addView(button("Save car support page") { saveCarSupportPage() })
 
         setContentView(
             ScrollView(this).apply {
@@ -79,17 +79,40 @@ class DeveloperToolsActivity : Activity() {
         setPadding(0, dp(16), 0, dp(8))
     }
 
-    /** Shows the car page on Android's "Simulate secondary displays" overlay, so adb can screenshot it. */
-    private fun showCarSupportPage() {
-        val display = getSystemService(android.hardware.display.DisplayManager::class.java)
-            .getDisplays(android.hardware.display.DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull()
-        if (display == null) {
-            Toast.makeText(this, "Turn on Developer options → Simulate secondary displays", Toast.LENGTH_LONG).show()
-            return
-        }
-        lateinit var page: dev.caraalink.video.CarStatusPresentation
-        page = dev.caraalink.video.CarStatusPresentation(this, display, dev.caraalink.video.CarScreen.SUPPORT) { page.dismiss() }
+    /** Renders the car page the way the car gets it (a private virtual display) and saves it to Downloads as a PNG. */
+    private fun saveCarSupportPage() {
+        val w = 1024
+        val h = 536
+        val reader = android.media.ImageReader.newInstance(w, h, android.graphics.PixelFormat.RGBA_8888, 2)
+        val dpi = (minOf(w, h) / 720f * 213).toInt()
+        val virtual = getSystemService(android.hardware.display.DisplayManager::class.java)
+            .createVirtualDisplay("car-page-preview", w, h, dpi, reader.surface, 0)
+        val page = dev.caraalink.video.CarStatusPresentation(this, virtual.display, dev.caraalink.video.CarScreen.SUPPORT) {}
         page.show()
+        window.decorView.postDelayed({
+            val name = reader.acquireLatestImage()?.use { image ->
+                val plane = image.planes[0]
+                val padded = android.graphics.Bitmap.createBitmap(plane.rowStride / plane.pixelStride, h, android.graphics.Bitmap.Config.ARGB_8888)
+                padded.copyPixelsFromBuffer(plane.buffer)
+                savePng(android.graphics.Bitmap.createBitmap(padded, 0, 0, w, h), "AABridge-car-support-page.png")
+            }
+            page.dismiss()
+            virtual.release()
+            reader.close()
+            Toast.makeText(this, name?.let { "Saved $it to Downloads" } ?: "Car page capture failed", Toast.LENGTH_LONG).show()
+        }, 1500)
+    }
+
+    private fun savePng(bitmap: android.graphics.Bitmap, name: String): String? {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, "image/png")
+        }
+        val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
+        return runCatching {
+            contentResolver.openOutputStream(uri)?.use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            name
+        }.getOrNull()
     }
 
     private fun button(label: String, onClick: () -> Unit) = MaterialButton(
