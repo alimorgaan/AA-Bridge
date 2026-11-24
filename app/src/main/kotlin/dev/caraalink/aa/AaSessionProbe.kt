@@ -680,13 +680,13 @@ class AaSessionProbe(
                         // AudioTrack-timing bug after all).
                         sendAvAck(channel, message.channelId)
                     } else if (chId == AaFraming.MSG_MEDIA_VIDEO_FOCUS_REQUEST) {
-                        // VideoFocusRequest{mode=2, reason=3}. NATIVE(2) is the driver's Exit, as openauto and
-                        // headunit-revived read it, unless the reason is PHONE_SCREEN_OFF(1).
+                        // VideoFocusRequest{mode=2, reason=3}. NATIVE(2) is the driver's Exit, as openauto and headunit-revived
+                        // read it, unless the reason is PHONE_SCREEN_OFF(1). A phone sent one before any video, so video first.
                         val fields = AaProtobuf.parse(chBody)
                         val mode = fields.firstOrNull { it.number == 2 }?.varint
                         val reason = fields.firstOrNull { it.number == 3 }?.varint
                         logger.log("RX VIDEO_FOCUS_REQUEST mode=$mode reason=$reason")
-                        if (mode == 2L && reason != 1L) stop() else {
+                        if (mode == 2L && reason != 1L && hasReceivedVideo) stop() else {
                             val focus = AaProtobuf.Writer().int(1, 1).bool(2, false).build() // PROJECTED
                             channel.sendChannelSpecific(message.channelId, AaFraming.MSG_MEDIA_VIDEO_FOCUS_NOTIFICATION, focus)
                         }
