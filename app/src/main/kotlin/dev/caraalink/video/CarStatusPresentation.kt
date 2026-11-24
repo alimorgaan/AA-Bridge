@@ -13,12 +13,13 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import dev.caraalink.R
 
-enum class CarScreen { WAITING, STARTING, NOT_RESPONDING, CLOSED }
+enum class CarScreen { WAITING, STARTING, NOT_RESPONDING, CLOSED, SUPPORT }
 
 /** Full-screen car message shown whenever Android Auto isn't on the car screen. */
 class CarStatusPresentation(
@@ -30,6 +31,10 @@ class CarStatusPresentation(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (screen == CarScreen.SUPPORT) {
+            setContentView(supportPage())
+            return
+        }
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -40,6 +45,7 @@ class CarStatusPresentation(
             CarScreen.STARTING -> R.string.car_starting
             CarScreen.NOT_RESPONDING -> R.string.car_not_responding_title
             CarScreen.CLOSED -> R.string.car_closed_title
+            CarScreen.SUPPORT -> R.string.support_if_helped
         }
         // Amber when the driver has to act, as on the phone.
         val needsDriver = screen == CarScreen.WAITING || screen == CarScreen.NOT_RESPONDING
@@ -58,6 +64,7 @@ class CarStatusPresentation(
                 spaced(dp(48), dp(48)),
             )
             CarScreen.CLOSED -> column.addView(openButton(), spaced())
+            CarScreen.SUPPORT -> Unit
         }
         setContentView(FrameLayout(context).apply {
             setBackgroundColor(BACKGROUND)
@@ -102,8 +109,44 @@ class CarStatusPresentation(
         setPadding(dp(12), 0, dp(12), 0)
     }
 
-    private fun openButton() = TextView(context).apply {
-        setText(R.string.car_open_aa)
+    /** Monthly support page: Arabic text on the right, the two QR codes on the left. */
+    private fun supportPage(): View {
+        val words = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(text(R.string.support_if_helped, 30f, TEXT, bold = true))
+            addView(text(R.string.car_support_line, 20f, MUTED))
+            addView(openButton(R.string.car_support_open_aa), spaced(top = dp(28)))
+        }
+        val codes = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(qrCode(R.drawable.qr_instapay, R.string.support_instapay))
+            addView(qrCode(R.drawable.qr_paypal, R.string.support_paypal))
+        }
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(32), dp(24), dp(32), dp(24))
+            addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(codes)
+        }
+        return FrameLayout(context).apply {
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setBackgroundColor(BACKGROUND)
+            addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+    }
+
+    private fun qrCode(image: Int, caption: Int) = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_HORIZONTAL
+        setPadding(dp(12), 0, dp(12), 0)
+        addView(ImageView(context).apply { setImageResource(image) }, LinearLayout.LayoutParams(dp(QR_DP), dp(QR_DP)))
+        addView(text(caption, 16f, MUTED))
+    }
+
+    private fun openButton(label: Int = R.string.car_open_aa) = TextView(context).apply {
+        setText(label)
         textSize = 22f
         setTextColor(Color.WHITE)
         typeface = Typeface.DEFAULT_BOLD
@@ -130,5 +173,7 @@ class CarStatusPresentation(
         val MUTED = Color.parseColor("#8AA3A8")
         val TEXT = Color.parseColor("#E8F1F2")
         val AMBER = Color.parseColor("#FBBF24")
+        // About 4.5 car pixels per QR module, so a phone camera picks it up from the passenger seat.
+        const val QR_DP = 170
     }
 }
