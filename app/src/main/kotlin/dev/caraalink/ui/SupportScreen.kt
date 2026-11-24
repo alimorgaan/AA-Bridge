@@ -3,6 +3,7 @@ package dev.caraalink.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,13 +47,21 @@ fun SupportScreen(onBack: () -> Unit, onSupported: () -> Unit) = Rtl {
         Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(stringResource(R.string.support_amount_hint), color = Dash.Text, fontSize = 17.sp, textAlign = TextAlign.Center)
             Spacer(Modifier.height(24.dp))
-            GlowButton(stringResource(R.string.support_instapay), { runCatching { uri.openUri(SupportAsk.INSTAPAY_URL) } })
+            BrandButton(stringResource(R.string.support_instapay), Color(SupportAsk.INSTAPAY_COLOR)) { runCatching { uri.openUri(SupportAsk.INSTAPAY_URL) } }
             Spacer(Modifier.height(14.dp))
-            GlowButton(stringResource(R.string.support_paypal), { runCatching { uri.openUri(SupportAsk.PAYPAL_URL) } })
+            BrandButton(stringResource(R.string.support_paypal), Color(SupportAsk.PAYPAL_COLOR)) { runCatching { uri.openUri(SupportAsk.PAYPAL_URL) } }
             Spacer(Modifier.height(20.dp))
             DashLink(stringResource(R.string.support_already), onSupported)
         }
     }
+}
+
+@Composable
+private fun BrandButton(text: String, brand: Color, onClick: () -> Unit) = Box(
+    Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(16.dp)).background(brand).clickable(onClick = onClick),
+    contentAlignment = Alignment.Center,
+) {
+    Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
 }
 
 @Composable

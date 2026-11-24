@@ -120,8 +120,8 @@ class CarStatusPresentation(
         }
         val codes = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(qrCode(R.drawable.qr_instapay, R.string.support_instapay))
-            addView(qrCode(R.drawable.qr_paypal, R.string.support_paypal))
+            addView(qrCode(R.drawable.qr_instapay, R.string.support_instapay, dev.caraalink.support.SupportAsk.INSTAPAY_COLOR))
+            addView(qrCode(R.drawable.qr_paypal, R.string.support_paypal, dev.caraalink.support.SupportAsk.PAYPAL_COLOR))
         }
         // Portrait car screens are too narrow for text beside the codes, so stack them.
         val portrait = context.resources.displayMetrics.run { heightPixels > widthPixels }
@@ -144,12 +144,24 @@ class CarStatusPresentation(
         }
     }
 
-    private fun qrCode(image: Int, caption: Int) = LinearLayout(context).apply {
+    /** A QR code framed in its brand color, with the brand's name on that color underneath. */
+    private fun qrCode(image: Int, caption: Int, brand: Int) = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         setPadding(dp(12), 0, dp(12), 0)
-        addView(ImageView(context).apply { setImageResource(image) }, LinearLayout.LayoutParams(dp(QR_DP), dp(QR_DP)))
-        addView(text(caption, 16f, MUTED))
+        addView(ImageView(context).apply {
+            setImageResource(image)
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = GradientDrawable().apply { setColor(brand); cornerRadius = dp(10).toFloat() }
+        }, LinearLayout.LayoutParams(dp(QR_DP + 12), dp(QR_DP + 12)))
+        addView(TextView(context).apply {
+            setText(caption)
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(14), dp(6), dp(14), dp(6))
+            background = GradientDrawable().apply { setColor(brand); cornerRadius = dp(14).toFloat() }
+        }, spaced(top = dp(10)))
     }
 
     private fun openButton(label: Int = R.string.car_open_aa) = TextView(context).apply {
