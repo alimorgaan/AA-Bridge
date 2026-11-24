@@ -53,7 +53,7 @@ The research (`reports/Egyptian donation copywriting.md`, local only) recommends
 ### Who gets asked
 
 - **Helped:** Android Auto video has reached the car at least once, in any earlier session. The banner, the pop-up and the car page all need this.
-- **Supported:** the user tapped «دعمت قبل كده». This turns the banner, the pop-up and the car page off for good.
+- **Supported:** the user tapped «دعمت قبل كده». This turns the pop-up and the car page off for good. The banner stays.
 - The Settings row always shows.
 
 ```mermaid
@@ -69,7 +69,7 @@ flowchart TD
     PU -- ادعم AA Bridge --> S[Support screen]
     B --> S
     R[Settings row, always] --> S
-    PU -- دعمت قبل كده --> X[supported = true:<br/>banner, pop-up, car page off for good]
+    PU -- دعمت قبل كده --> X[supported = true:<br/>pop-up and car page off for good]
     S -- دعمت قبل كده --> X
 ```
 
@@ -92,7 +92,7 @@ Each clock is set when its surface is shown, and the two clocks are independent.
 - Label: «ادعم AA Bridge»
 - Subtitle: «لو الابلكيشن ساعدك واستفدت بيه»
 
-**Home banner:** an accent-colored banner at the top of the home screen, under the header and above the status ring. It shows when helped and not supported, and opens the Support screen.
+**Home banner:** an accent-colored banner at the top of the home screen, under the header and above the status ring. It shows once helped and stays for good, even after «دعمت قبل كده» (Ali's call). It opens the Support screen.
 - Text: «لو الابلكيشن ساعدك، ادعمه بتمن فنجان قهوة»
 
 ```
@@ -116,10 +116,10 @@ Any open the user starts counts, including from Recents or a notification, and i
 
 **Support screen (phone):**
 - Title: «ادعم AA Bridge»
-- Line: «اكتب المبلغ اللي يريحك، مثلاً 100 جنيه»
+- Line: «ادعم بأي مبلغ يريحك، مثلاً 100 جنيه». The first version, «اكتب المبلغ...», read like a form to fill in on this screen.
 - Buttons:
-  - «InstaPay (داخل مصر)» opens the InstaPay link.
-  - «PayPal (خارج مصر)» opens the PayPal link.
+  - «InstaPay (داخل مصر)» opens the InstaPay link. Filled InstaPay purple (#552B78), white text.
+  - «PayPal (خارج مصر)» opens the PayPal link. Filled PayPal navy (#003087), white text.
   - A text button, «دعمت قبل كده», at the bottom, with the same effect as in the pop-up.
 
 **Car page:** a new car status screen, `CarScreen.SUPPORT`. At the point where a session opens Android Auto by itself (once per session, `CarSession`, the `autoLaunchedAa` block), show this page instead when all of these are true: helped, not supported, and at least 30 days since `carPageShownAt` (or never shown). Then set `carPageShownAt`. Tapping «افتح Android Auto» opens Android Auto. The page never opens Android Auto by itself, so `mayAutoOpenAa` must treat SUPPORT like CLOSED. It shows on cable and wireless, in every country.
@@ -149,7 +149,11 @@ All ask copy is Arabic, whatever language the phone is set to. Many Egyptians ru
 
 ### Links and QR codes
 
-The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows a QR code for each link. The phone's Support screen shows none, because a phone can't scan its own screen.
+The InstaPay link (Ali has it) and the PayPal link (Ali will create it) are constants in the code, like the About screen's URLs. The car page shows a QR code for each link, framed in its brand color, with the brand's name in white on that color underneath. Brand colors and names only, no logo files: PayPal publishes logo rules for merchants, InstaPay publishes none. The phone's Support screen shows none, because a phone can't scan its own screen.
+
+## Releases
+
+Attach the APK twice to each GitHub release: as `AA-Bridge-<version>.apk`, so a browser download never lands as "AA-Bridge (1).apk" next to an old file, and as `AA-Bridge.apk`, so `releases/latest/download/AA-Bridge.apk` links in the README and on Facebook keep working. The in-app updater takes the first `.apk` asset and saves it as `update.apk`, so it needs no change.
 
 ## Left to the builder
 
