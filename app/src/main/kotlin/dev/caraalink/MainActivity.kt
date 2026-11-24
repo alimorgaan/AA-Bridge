@@ -194,7 +194,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         val helped = AppSettings.supportHelped(this)
         val supported = AppSettings.supported(this)
-        supportBanner = helped && !supported
+        supportBanner = helped
         val byCar = carLaunchPending
         carLaunchPending = false
         val now = System.currentTimeMillis()
@@ -221,7 +221,6 @@ class MainActivity : ComponentActivity() {
 
     private fun markSupported() {
         AppSettings.setSupported(this)
-        supportBanner = false
         supportPopup = false
         Toast.makeText(this, R.string.support_thanks, Toast.LENGTH_LONG).show()
     }
