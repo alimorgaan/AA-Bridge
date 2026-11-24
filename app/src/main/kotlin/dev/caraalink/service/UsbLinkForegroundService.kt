@@ -144,7 +144,11 @@ class UsbLinkForegroundService : Service() {
         when (intent?.action) {
             ACTION_START_SNIFFER -> handleStart(intent) { accessory -> beginSniffing(accessory) }
             ACTION_START_ADB_PROBE -> handleStart(intent) { accessory -> beginAdbProbe(accessory) }
-            ACTION_START_SESSION -> handleStart(intent) { accessory -> beginSession(accessory, fresh = true) }
+            ACTION_START_SESSION -> {
+                // A replug while this service still holds a cable is the same drive, not a fresh connection.
+                val fresh = pendingAccessory == null
+                handleStart(intent) { accessory -> beginSession(accessory, fresh) }
+            }
             ACTION_START_WIRELESS -> {
                 val address = intent.getStringExtra(EXTRA_CAR_ADDRESS)
                 val target = address?.let { RememberedCar(intent.getStringExtra(EXTRA_CAR_NAME) ?: it, it) }

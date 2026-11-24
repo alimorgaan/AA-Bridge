@@ -434,7 +434,8 @@ class CarSession(
         // First point the car display exists; once per session, since every CONFIG_CAPTURE lands here.
         if (!autoLaunchedAa) {
             autoLaunchedAa = true
-            if (showSupportPage) {
+            // Re-checked here: wireless reaches this point seconds after the user may have tapped «دعمت قبل كده».
+            if (showSupportPage && !dev.caraalink.settings.AppSettings.supported(context)) {
                 logger.log("showing the monthly support page before Android Auto")
                 dev.caraalink.settings.AppSettings.setSupportCarPageShownAt(context, System.currentTimeMillis())
                 display.showStatus(CarScreen.SUPPORT)
