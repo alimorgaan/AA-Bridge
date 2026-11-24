@@ -41,6 +41,8 @@ class MainActivity : ComponentActivity() {
 
     private var supportBanner by mutableStateOf(false)
     private var supportPopup by mutableStateOf(false)
+    // Set where the intent arrives (onCreate/onNewIntent), read in onResume: onStart runs before onNewIntent.
+    private var carLaunchPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +58,7 @@ class MainActivity : ComponentActivity() {
         dev.caraalink.update.UpdateChecker.checkIfDue(this)
         maybeAutoStartOnAttach(intent, recreated = savedInstanceState != null)
         maybeStartAaTls(intent)
+        carLaunchPending = launchedByCar(intent)
         val firstScreen = if (AppSettings.setupComplete(this)) Screen.HOME else Screen.SETUP
         setContent {
             AaBridgeTheme {
@@ -187,16 +190,22 @@ class MainActivity : ComponentActivity() {
 
     // When the app is already running, picking it in the USB chooser delivers
     // the attach intent here instead of onCreate.
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         val helped = AppSettings.supportHelped(this)
         val supported = AppSettings.supported(this)
         supportBanner = helped && !supported
+        val byCar = carLaunchPending
+        carLaunchPending = false
         val now = System.currentTimeMillis()
-        if (!launchedByCar(intent) && SupportAsk.isDue(helped, supported, AppSettings.supportPopupShownAt(this), now)) {
+        if (!byCar && SupportAsk.isDue(helped, supported, AppSettings.supportPopupShownAt(this), now)) {
             supportPopup = true
             AppSettings.setSupportPopupShownAt(this, now)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
         // Opening the app connects to the remembered car; the cable and a running attempt both win.
         // Without Nearby devices the scan can only fail; Home's Connect without a cable asks for it instead.
         val canScan = checkSelfPermission(dev.caraalink.ui.NEARBY_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -221,6 +230,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         Log.i(TAG, "onNewIntent: action=${intent.action}")
+        carLaunchPending = launchedByCar(intent)
         maybeAutoStartOnAttach(intent)
         maybeStartAaTls(intent)
     }
