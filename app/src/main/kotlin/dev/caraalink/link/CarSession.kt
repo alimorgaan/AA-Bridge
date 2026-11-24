@@ -25,6 +25,8 @@ class CarSession(
     private val accessory: UsbAccessory?,
     /** Wireless sessions hand the running Android Auto session to the next car link instead of closing it. */
     private val keepAndroidAuto: Boolean = false,
+    /** Once a month, a fresh connection shows the support page before Android Auto. */
+    private val showSupportPage: Boolean = false,
     private val onEnded: (String) -> Unit,
 ) : MirrorHost {
 
@@ -255,6 +257,7 @@ class CarSession(
     // off the stall threshold on each consecutive watchdog-triggered restart
     // instead of hammering it at the same fixed interval forever.
     private var watchdogRestartStreak = 0
+    private var helpedMarked = false
     private var inactiveSince = 0L
     private var statsAt = Triple(0L, 0L, 0L)
 
@@ -270,6 +273,10 @@ class CarSession(
         override fun run() {
             logStats()
             val probe = dev.caraalink.aa.AaSessionProbe.active
+            if (!helpedMarked && display.mode == CarDisplay.Mode.AA && probe?.hasReceivedVideo == true) {
+                helpedMarked = true
+                dev.caraalink.settings.AppSettings.setSupportHelped(context)
+            }
             if (display.mode == CarDisplay.Mode.AA) {
                 if (probe == null) {
                     // Session ended on its own (AA's Exit sends SHUTDOWN_REQUEST); don't leave a frozen frame up.
@@ -427,7 +434,13 @@ class CarSession(
         // First point the car display exists; once per session, since every CONFIG_CAPTURE lands here.
         if (!autoLaunchedAa) {
             autoLaunchedAa = true
-            openAndroidAuto()
+            if (showSupportPage) {
+                logger.log("showing the monthly support page before Android Auto")
+                dev.caraalink.settings.AppSettings.setSupportCarPageShownAt(context, System.currentTimeMillis())
+                display.showStatus(CarScreen.SUPPORT)
+            } else {
+                openAndroidAuto()
+            }
         }
     }
 
@@ -581,7 +594,7 @@ class CarSession(
 
         /** Automatic reopens (restarts, retries, polls) must not undo an unplug or a deliberate exit. */
         internal fun mayAutoOpenAa(released: Boolean, screen: CarScreen): Boolean =
-            !released && screen != CarScreen.CLOSED
+            !released && screen != CarScreen.CLOSED && screen != CarScreen.SUPPORT
 
         /** A still screen is fine while Android Auto answers pings; its clock still redraws every minute. */
         internal fun aaStalled(silentMs: Long, videoStaleMs: Long, silentLimitMs: Long): Boolean =

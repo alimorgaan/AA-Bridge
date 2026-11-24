@@ -11,6 +11,7 @@ class CarSessionWatchdogTest {
     fun releasedOrClosedNeverReopensByItself() {
         assertFalse(CarSession.mayAutoOpenAa(released = true, screen = CarScreen.STARTING))
         assertFalse(CarSession.mayAutoOpenAa(released = false, screen = CarScreen.CLOSED))
+        assertFalse(CarSession.mayAutoOpenAa(released = false, screen = CarScreen.SUPPORT))
         assertTrue(CarSession.mayAutoOpenAa(released = false, screen = CarScreen.STARTING))
     }
 
