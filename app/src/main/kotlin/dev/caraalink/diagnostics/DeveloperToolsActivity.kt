@@ -59,6 +59,11 @@ class DeveloperToolsActivity : Activity() {
         root.addView(button("Connection diagnostics") {
             startActivity(Intent(this@DeveloperToolsActivity, ConnectionDiagnosticsActivity::class.java))
         })
+        root.addView(button("Reset support asks") {
+            dev.caraalink.settings.AppSettings.resetSupportAsks(this)
+            Toast.makeText(this, "Support asks reset", Toast.LENGTH_SHORT).show()
+        })
+        root.addView(button("Show car support page") { showCarSupportPage() })
 
         setContentView(
             ScrollView(this).apply {
@@ -72,6 +77,19 @@ class DeveloperToolsActivity : Activity() {
         setTextColor(Color.parseColor("#9AA7B2"))
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         setPadding(0, dp(16), 0, dp(8))
+    }
+
+    /** Shows the car page on Android's "Simulate secondary displays" overlay, so adb can screenshot it. */
+    private fun showCarSupportPage() {
+        val display = getSystemService(android.hardware.display.DisplayManager::class.java)
+            .getDisplays(android.hardware.display.DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull()
+        if (display == null) {
+            Toast.makeText(this, "Turn on Developer options → Simulate secondary displays", Toast.LENGTH_LONG).show()
+            return
+        }
+        lateinit var page: dev.caraalink.video.CarStatusPresentation
+        page = dev.caraalink.video.CarStatusPresentation(this, display, dev.caraalink.video.CarScreen.SUPPORT) { page.dismiss() }
+        page.show()
     }
 
     private fun button(label: String, onClick: () -> Unit) = MaterialButton(
