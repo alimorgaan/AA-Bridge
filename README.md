@@ -25,6 +25,7 @@ The app runs on your phone. It starts a local Android Auto session and sends it 
 ## Will it work in my car?
 
 - **Tested:** 2026 Geely Emgrand (Egypt, head unit EC-KY-4350), over cable and wireless. One other CarbitLink head unit over cable. A 2026 Geely Emgrand with QDLink over cable.
+- **USB-debugging head unit, needs a local build:** a Maxus D90 whose "Android USB" option connects through USB debugging, not accessory mode, and only talks to an app named like CarbitLink. See [USB-debugging mode](docs/ADB-Host-Mode.md).
 - **Likely to work:** cars from Geely, Chery, Jetour, BAIC, JAC, GAC and Proton whose screen has CarbitLink, EasyConnection or a "phone link" app. This list comes from adapter listings and owner guides, not from our own tests.
 - **Tried it in your car?** Open an [issue](../../issues) with the car model and year, the name of the phone-link app on the car screen, cable or wireless, and whether it worked.
 
@@ -53,6 +54,7 @@ The app walks you through this the first time:
 
 - **Cable:** plug in. Android Auto opens on the car screen by itself.
 - **Wireless:** open AA Bridge. It finds your car and connects. You can close the app after that.
+- **USB debugging (ADB head units):** turn on USB debugging and open AA Bridge, then connect. Switch this off in Settings → Advanced → USB-debugging cars if you don't need it. [Details and limits](docs/ADB-Host-Mode.md).
 
 Plugging in the cable while connected wirelessly switches over without restarting Android Auto. Music, navigation voice and calls play through the phone's Bluetooth to the car, so keep the phone paired with the car.
 

@@ -5,8 +5,10 @@ import android.content.Context
 import android.hardware.usb.UsbAccessory
 import android.util.Log
 import dev.caraalink.aa.AndroidAutoServer
+import dev.caraalink.connection.CarLink
 import dev.caraalink.connection.ConnectionPhase
 import dev.caraalink.connection.ConnectionStateHolder
+import dev.caraalink.connection.WirelessPhase
 
 import dev.caraalink.diagnostics.DiagnosticLogger
 import dev.caraalink.usb.UsbAccessoryConnection
@@ -83,12 +85,27 @@ class CarSession(
         transport = SocketTransport(logger, channels(), ::onTransportClosed).also { it.start() }
     }
 
+    /**
+     * Starts a session for a car that connects through USB debugging (ADB). It uses the same mirror channels as
+     * the other kinds of connection.
+     */
+    fun startAdbMode() {
+        ConnectionStateHolder.update {
+            it.copy(link = CarLink.CABLE, wireless = WirelessPhase.IDLE, phase = ConnectionPhase.ATTACHED, lastError = null)
+        }
+        features.start()
+        transport = SocketTransport(logger, channels(), ::onTransportClosed, adbMode = true).also { it.start() }
+    }
+
     private fun channels(): (String) -> AdbTransport.StreamHandler? {
         val pxc = PxcChannel(logger, { info -> onClientInfo(info) }, features::replyBody).also { this.pxc = it }
         val ctrl = MirrorControlChannel(logger, this, context)
         val data = MirrorDataChannel(logger, this)
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        val legacy = LegacyControlHandler(logger) { power?.isInteractive != false }
         return { service ->
             when (service) {
+                "tcp:5903" -> legacy
                 "tcp:10922" -> pxc
                 "tcp:10921" -> ctrl
                 "tcp:10920" -> data

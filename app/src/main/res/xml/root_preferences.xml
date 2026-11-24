@@ -98,6 +98,11 @@
             android:title="Auto-reconnect"
             android:summary="Reconnect automatically if the USB link drops"
             android:defaultValue="true" />
+        <SwitchPreferenceCompat
+            android:key="adb_host_mode"
+            android:title="USB-debugging cars"
+            android:summary="While the app is open and USB debugging is on, listen for head units that connect through USB debugging (ADB)"
+            android:defaultValue="true" />
         <ListPreference
             android:key="usb_role_override"
             android:title="USB role override (debug)"

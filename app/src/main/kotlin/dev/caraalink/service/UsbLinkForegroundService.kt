@@ -55,6 +55,7 @@ class UsbLinkForegroundService : Service() {
     private var sniffer: UsbSnifferDiagnostic? = null
     private var adbProbe: AdbHandshakeProbe? = null
     private var session: CarSession? = null
+    private var adbUsbReceiver: BroadcastReceiver? = null
     private var pendingAccessory: UsbAccessory? = null
     private var resumeActiveMode: ((UsbAccessory) -> Unit)? = null
     private var detachStopRunnable: Runnable? = null
@@ -134,6 +135,7 @@ class UsbLinkForegroundService : Service() {
             ACTION_START_SNIFFER -> handleStart(intent) { accessory -> beginSniffing(accessory) }
             ACTION_START_ADB_PROBE -> handleStart(intent) { accessory -> beginAdbProbe(accessory) }
             ACTION_START_SESSION -> handleStart(intent) { accessory -> beginSession(accessory) }
+            ACTION_START_ADB_SESSION -> beginAdbSession()
             ACTION_START_WIRELESS -> {
                 val address = intent.getStringExtra(EXTRA_CAR_ADDRESS)
                 val target = address?.let { RememberedCar(intent.getStringExtra(EXTRA_CAR_NAME) ?: it, it) }
@@ -187,6 +189,83 @@ class UsbLinkForegroundService : Service() {
             acquireWakeLock()
             begin(accessory)
         }
+    }
+
+    /**
+     * Waits for a car that connects through USB debugging (ADB). There is no USB accessory to wait for, so we
+     * just listen. Does nothing if a cable or Wi-Fi session is already running.
+     */
+    private fun beginAdbSession() {
+        // startForegroundService() requires this even when there turns out to be nothing to do.
+        try {
+            startForegroundWithMic()
+        } catch (e: SecurityException) {
+            Log.w(TAG, "startForeground refused for the ADB-mode session", e)
+            stopSelf()
+            return
+        }
+        val snapshot = ConnectionStateHolder.snapshot
+        if (session != null || wirelessLink != null || snapshot.link != CarLink.NONE || snapshot.wireless != WirelessPhase.IDLE) {
+            Log.i(TAG, "beginAdbSession: another session is active, not starting")
+            return
+        }
+        Log.i(TAG, "beginAdbSession")
+        stopping = false
+        acquireWakeLock()
+        lateinit var s: CarSession
+        s = CarSession(this, null) { reason ->
+            handler.post {
+                if (session === s) {
+                    Log.i(TAG, "ADB-mode session ended: $reason")
+                    session = null
+                    stopSelfCleanly()
+                }
+            }
+        }
+        session = s
+        s.startAdbMode()
+        watchUsbForAdbMode()
+    }
+
+    /**
+     * Stops the session 30 seconds after the USB cable is unplugged, so the notification does not stay forever.
+     * We wait because the car resets USB a few times when it connects. We only count a cable that was connected
+     * first, because the app is usually opened before the phone is plugged in.
+     */
+    private fun watchUsbForAdbMode() {
+        if (adbUsbReceiver != null) return
+        var seenConnected = false
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                detachStopRunnable?.let { handler.removeCallbacks(it) }
+                detachStopRunnable = null
+                if (intent.getBooleanExtra("connected", false)) {
+                    seenConnected = true
+                    return
+                }
+                if (!seenConnected) return
+                val runnable = Runnable {
+                    Log.i(TAG, "USB disconnected for 30s, stopping the ADB-mode session")
+                    stopping = true
+                    stopSelfCleanly()
+                }
+                detachStopRunnable = runnable
+                handler.postDelayed(runnable, 30_000L)
+            }
+        }
+        val filter = IntentFilter("android.hardware.usb.action.USB_STATE")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receiver, filter)
+        }
+        adbUsbReceiver = receiver
+    }
+
+    private fun unwatchUsb() {
+        adbUsbReceiver?.let { runCatching { unregisterReceiver(it) } }
+        adbUsbReceiver = null
     }
 
     private fun beginSniffing(accessory: UsbAccessory) {
@@ -264,6 +343,7 @@ class UsbLinkForegroundService : Service() {
         runCatching { unregisterReceiver(detachReceiver) }
         sniffer?.stop()
         adbProbe?.stop()
+        unwatchUsb()
         releaseWakeLock()
         super.onDestroy()
     }
@@ -557,6 +637,7 @@ class UsbLinkForegroundService : Service() {
         sniffer?.stop()
         adbProbe?.stop()
         adbProbe = null
+        unwatchUsb()
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -646,6 +727,7 @@ class UsbLinkForegroundService : Service() {
         const val ACTION_START_ADB_PROBE = "dev.caraalink.service.action.START_ADB_PROBE"
         const val ACTION_STOP = "dev.caraalink.service.action.STOP"
         const val ACTION_START_SESSION = "dev.caraalink.service.action.START_SESSION"
+        const val ACTION_START_ADB_SESSION = "dev.caraalink.service.action.START_ADB_SESSION"
         /** A session that just failed stops the service; a leftover ERROR seen by a later update must not. */
         internal fun shouldStopOnError(previous: ConnectionPhase?, snapshot: ConnectionSnapshot): Boolean =
             snapshot.phase == ConnectionPhase.ERROR && previous != ConnectionPhase.ERROR && snapshot.link != CarLink.WIRELESS
