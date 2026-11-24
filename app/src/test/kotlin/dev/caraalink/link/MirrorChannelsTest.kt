@@ -29,7 +29,7 @@ class MirrorChannelsTest {
         // match CaptureConfig.parse()'s own documented field layout, pinning
         // that parser against this real confirmed shape rather than a
         // synthetic one.
-        val bb = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
+        val bb = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(1920)   // width
             .putShort(720)    // height
             .putInt(0)        // wantFps
@@ -39,7 +39,8 @@ class MirrorChannelsTest {
             .putShort(0)      // maxQuality
             .putInt(4_194_304) // bitRate
         val base = bb.array()
-        val extended = base + byteArrayOf(0, 0, 1 /* orientation */, 0 /* displayId */, 0, 0 /* supportExtendProtocol */)
+        // The real car sends an 8-byte tail (32-byte body); parse() reads only the first 6.
+        val extended = base + byteArrayOf(0, 0, 1 /* orientation */, 0 /* displayId */, 0, 0 /* supportExtendProtocol */, 0, 0)
 
         val config = CaptureConfig.parse(extended)
 
@@ -59,7 +60,7 @@ class MirrorChannelsTest {
 
     @Test
     fun `CaptureConfig without the optional tail defaults orientation and displayId to 0`() {
-        val base = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
+        val base = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(1280).putShort(720).putInt(30).putInt(1).putInt(0)
             .putShort(0).putShort(0).putInt(3_000_000)
             .array()

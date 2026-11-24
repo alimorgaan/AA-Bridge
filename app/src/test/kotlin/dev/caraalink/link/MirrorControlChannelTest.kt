@@ -44,7 +44,7 @@ class MirrorControlChannelTest {
 
     @Test
     fun `CONFIG_CAPTURE reaches the host parsed, and replies with H264 + encode size`() {
-        val body = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
+        val body = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(1920).putShort(720).putInt(0).putInt(2).putInt(0)
             .putShort(0).putShort(0).putInt(4_194_304).array()
 
