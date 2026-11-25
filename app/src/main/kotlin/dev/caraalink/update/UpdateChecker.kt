@@ -66,11 +66,24 @@ object UpdateChecker {
      * Release published. That's "nothing to compare against", not a
      * failure -- treated as up to date, no error surfaced.
      */
+    /** Dotted version numbers compared part by part, so 1.10 beats 1.9; missing parts count as 0. */
+    internal fun isNewer(latest: String, installed: String): Boolean {
+        fun parts(v: String) = v.split('.').map { part -> part.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+        val a = parts(latest)
+        val b = parts(installed)
+        for (i in 0 until maxOf(a.size, b.size)) {
+            val diff = a.getOrElse(i) { 0 } - b.getOrElse(i) { 0 }
+            if (diff != 0) return diff > 0
+        }
+        return false
+    }
+
     private fun checkLatestRelease(): UpdateInfo? {
         val body = get("https://api.github.com/repos/$OWNER/$REPO/releases/latest") ?: return null
         val json = JSONObject(body)
         val tag = json.getString("tag_name").removePrefix("v")
-        if (tag == BuildConfig.VERSION_NAME) return null
+        // Only newer: a build ahead of the latest release (a tester's pre-release) must not be offered an older one.
+        if (!isNewer(tag, BuildConfig.VERSION_NAME)) return null
         return UpdateInfo("Update available: v$tag", json.getString("html_url"), apkAssetUrl(json))
     }
 
