@@ -27,7 +27,7 @@ These count as failure even if everything works:
 
 ## Constraints
 
-- An InstaPay link or QR fills in the recipient but not the amount, so the suggested amount (100 EGP) is printed in the copy. InstaPay doesn't support pasting an address, so it's the link and its QR only.
+- An InstaPay link or QR fills in the recipient but not the amount, so the suggested amounts (50 or 100 EGP) are printed in the copy. InstaPay doesn't support pasting an address, so it's the link and its QR only.
 - InstaPay only works for Egyptian bank accounts. PayPal is the route for everyone else. PayPal is reportedly unavailable or restricted in Tunisia and Algeria.
 - Car-screen text must be readable at a glance, with nothing animated or scrolling.
 - The app currently has no QR code library.
@@ -107,7 +107,7 @@ Made by Ali Morgan · v1.2.1
 
 Any open the user starts counts, including from Recents or a notification, and including while a wireless car is connecting. Ali chose this because the moment before a drive is when people are most likely to pay.
 - Title: «لو الابلكيشن ساعدك واستفدت بيه»
-- Body: «أنا علي، اللي عامل AA Bridge، وهيفضل مجاني. تقدر تدعمه بتمن فنجان قهوة، مثلاً 100 جنيه، أو بأي مبلغ يريحك. ومفيش أي إلزام، ودعوة حلوة منك تفرق معايا زيها زي أي مبلغ.»
+- Body: «أنا علي، اللي عامل AA Bridge، وهيفضل مجاني. تقدر تدعمه بتمن فنجان قهوة، مثلاً 50 أو 100 جنيه، أو بأي مبلغ يريحك. ومفيش أي إلزام، ودعوة حلوة منك تفرق معايا زيها زي أي مبلغ.»
 - The banner and the Settings row open the same pop-up, so payment is one tap from all three. There is no separate Support screen: it was one tap too many (Ali's call).
 - Buttons:
   - In Egypt, one InstaPay button: InstaPay purple (#552B78) with InstaPay's own white wordmark (from instapay.eg). It opens the InstaPay link.
@@ -133,7 +133,7 @@ The page also never shows while an Android Auto session is already running (`AaS
 ```
 ┌────────────────────────────────────────────────────────┐
 │ ┌───────────┐            لو الابلكيشن ساعدك واستفدت بيه │
-│ │ InstaPay  │      ادعمه بتمن فنجان قهوة، مثلاً 100 جنيه │
+│ │ InstaPay  │      ادعمه بتمن فنجان قهوة، مثلاً 50 أو 100 جنيه │
 │ │ QR card   │                                          │
 │ └───────────┘                  [ افتح Android Auto ]    │
 └────────────────────────────────────────────────────────┘
