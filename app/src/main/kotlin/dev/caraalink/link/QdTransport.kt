@@ -358,12 +358,6 @@ class QdTransport(
     }
 
     private fun onFrame(msgType: Int, payloadFormat: Int, payload: ByteArray) {
-        if (bin) {
-            // A stray !BIN block came first; real 5A5A traffic wins, and the handshake (AppStatus resends, watchdog) runs again.
-            bin = false
-            carInfo = false
-            logger.log("QD: the car speaks 5A5A after all -- leaving the old format")
-        }
         json = true
         when {
             payloadFormat == QdFrames.FORMAT_JSON -> {
