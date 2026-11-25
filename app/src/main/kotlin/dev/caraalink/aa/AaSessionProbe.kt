@@ -137,6 +137,9 @@ class AaSessionProbe(
     var hasReceivedVideo: Boolean = false
         private set
 
+    /** Like [hasReceivedVideo] but for the current connection only; the watchdog keeps using the session-wide flag. */
+    @Volatile private var videoThisConnection = false
+
     /** Like setting [videoSink] directly, but also replays cached SPS/PPS + last keyframe if we have them. */
     fun attachVideoSink(sink: (timestampUs: Long, nal: ByteArray) -> Unit) {
         videoSink = sink
@@ -477,6 +480,7 @@ class AaSessionProbe(
             channel.sendControlPlain(AaFraming.MSG_AUTH_COMPLETE, authResponse)
             lastVideoFrameAt = System.currentTimeMillis() // grace period before the watchdog can call this stale
             lastMessageAt = lastVideoFrameAt
+            videoThisConnection = false
             isConnectionActive = true
 
             var index = 0
@@ -626,6 +630,7 @@ class AaSessionProbe(
                             if (containsIdr(frame)) cachedKeyframe = frame
                             lastVideoFrameAt = System.currentTimeMillis()
                             hasReceivedVideo = true
+                            videoThisConnection = true
                             mediaExecutor.execute { videoSink?.invoke(ts, frame) }
                         }
                         // Flow control (AVMediaAckIndication, 0x8004): our own
@@ -680,13 +685,13 @@ class AaSessionProbe(
                         // AudioTrack-timing bug after all).
                         sendAvAck(channel, message.channelId)
                     } else if (chId == AaFraming.MSG_MEDIA_VIDEO_FOCUS_REQUEST) {
-                        // VideoFocusRequest{mode=2, reason=3}. NATIVE(2) is the driver's Exit, as openauto and headunit-revived
-                        // read it, unless the reason is PHONE_SCREEN_OFF(1). A phone sent one before any video, so video first.
+                        // NATIVE(2) is the driver's Exit (as openauto reads it) unless the reason is PHONE_SCREEN_OFF(1). Phones
+                        // also send one at startup, so it only counts once video has arrived on this connection.
                         val fields = AaProtobuf.parse(chBody)
                         val mode = fields.firstOrNull { it.number == 2 }?.varint
                         val reason = fields.firstOrNull { it.number == 3 }?.varint
                         logger.log("RX VIDEO_FOCUS_REQUEST mode=$mode reason=$reason")
-                        if (mode == 2L && reason != 1L && hasReceivedVideo) stop() else {
+                        if (mode == 2L && reason != 1L && videoThisConnection) stop() else {
                             val focus = AaProtobuf.Writer().int(1, 1).bool(2, false).build() // PROJECTED
                             channel.sendChannelSpecific(message.channelId, AaFraming.MSG_MEDIA_VIDEO_FOCUS_NOTIFICATION, focus)
                         }
