@@ -5,6 +5,7 @@ import dev.caraalink.usb.UsbAccessoryConnection
 import java.nio.ByteBuffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -94,6 +95,26 @@ class QdFramesTest {
         val host = FakeMirrorHost()
         val qd = QdTransport(mock(UsbAccessoryConnection::class.java), mock(DiagnosticLogger::class.java), host) {}
         onFrame.invoke(qd, 99, 0, ByteArray(0))
+        listOf(
+            QdBin.block(QdBin.TYPE_SCREEN, 1).putInt(64, 1536).putInt(68, 576),
+            QdBin.block(QdBin.TYPE_CMD, 1).putInt(68, QdBin.CMD_PLAY_STATUS).putInt(72, 1),
+        ).forEach { onBin.invoke(qd, it.array(), ByteArray(0)) }
+        assertTrue(host.capturedConfigs.isEmpty())
+    }
+
+    @Test
+    fun aStrayBinBlockBeforeThe5A5ATrafficGivesWayTo5A5A() {
+        val onFrame = QdTransport::class.java.getDeclaredMethod("onFrame", Int::class.java, Int::class.java, ByteArray::class.java)
+            .apply { isAccessible = true }
+        val onBin = QdTransport::class.java.getDeclaredMethod("onBin", ByteArray::class.java, ByteArray::class.java)
+            .apply { isAccessible = true }
+        val carInfo = QdTransport::class.java.getDeclaredField("carInfo").apply { isAccessible = true }
+        val host = FakeMirrorHost()
+        val qd = QdTransport(mock(UsbAccessoryConnection::class.java), mock(DiagnosticLogger::class.java), host) {}
+        onBin.invoke(qd, QdBin.block(QdBin.TYPE_CMD, 1).putInt(68, QdBin.CMD_HEARTBEAT).putInt(72, 0).array(), ByteArray(0))
+        onFrame.invoke(qd, 99, 0, ByteArray(0))
+        // Back on 5A5A, the handshake runs again: AppStatus resends and the no-CAR_INFO watchdog need carInfo false.
+        assertFalse(carInfo.getBoolean(qd))
         listOf(
             QdBin.block(QdBin.TYPE_SCREEN, 1).putInt(64, 1536).putInt(68, 576),
             QdBin.block(QdBin.TYPE_CMD, 1).putInt(68, QdBin.CMD_PLAY_STATUS).putInt(72, 1),
