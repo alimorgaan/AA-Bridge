@@ -103,4 +103,19 @@
     <string name="tile_link">Link</string>
     <string name="link_wireless_short">Wireless</string>
     <string name="link_cable_short">Cable</string>
+
+    <!-- Support ask: Arabic on every phone, so these have no translations. -->
+    <string name="support_if_helped" translatable="false">لو الابلكيشن ساعدك واستفدت بيه</string>
+    <string name="support_popup_body" translatable="false">أنا علي، اللي عامل AA Bridge، وهيفضل مجاني. تقدر تدعمه بتمن فنجان قهوة، مثلاً 50 أو 100 جنيه، أو بأي مبلغ يريحك. ومفيش أي إلزام، ودعوة حلوة منك تفرق معايا زيها زي أي مبلغ.</string>
+    <string name="support_action" translatable="false">ادعم AA Bridge</string>
+    <string name="support_not_now" translatable="false">مش دلوقتي</string>
+    <string name="support_already" translatable="false">دعمت قبل كده</string>
+    <string name="support_thanks" translatable="false">شكرًا إنك دعمت AA Bridge.</string>
+    <string name="support_banner" translatable="false">لو الابلكيشن ساعدك، ادعمه بتمن فنجان قهوة</string>
+    <string name="support_instapay" translatable="false">InstaPay (داخل مصر)</string>
+    <string name="support_paypal" translatable="false">PayPal (خارج مصر)</string>
+    <string name="support_not_in_egypt" translatable="false">مش في مصر؟</string>
+    <string name="support_in_egypt" translatable="false">في مصر؟</string>
+    <string name="car_support_line" translatable="false">ادعمه بتمن فنجان قهوة، مثلاً 50 أو 100 جنيه</string>
+    <string name="car_support_open_aa" translatable="false">افتح Android Auto</string>
 </resources>

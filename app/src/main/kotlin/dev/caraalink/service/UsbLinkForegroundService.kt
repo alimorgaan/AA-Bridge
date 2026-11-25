@@ -144,7 +144,11 @@ class UsbLinkForegroundService : Service() {
         when (intent?.action) {
             ACTION_START_SNIFFER -> handleStart(intent) { accessory -> beginSniffing(accessory) }
             ACTION_START_ADB_PROBE -> handleStart(intent) { accessory -> beginAdbProbe(accessory) }
-            ACTION_START_SESSION -> handleStart(intent) { accessory -> beginSession(accessory) }
+            ACTION_START_SESSION -> {
+                // A replug while this service still holds a cable is the same drive, not a fresh connection.
+                val fresh = pendingAccessory == null
+                handleStart(intent) { accessory -> beginSession(accessory, fresh) }
+            }
             ACTION_START_WIRELESS -> {
                 val address = intent.getStringExtra(EXTRA_CAR_ADDRESS)
                 val target = address?.let { RememberedCar(intent.getStringExtra(EXTRA_CAR_NAME) ?: it, it) }
@@ -220,7 +224,7 @@ class UsbLinkForegroundService : Service() {
         p.start(accessory)
     }
 
-    private fun beginSession(accessory: UsbAccessory) {
+    private fun beginSession(accessory: UsbAccessory, fresh: Boolean = false) {
         // Stop a wireless session while link is still WIRELESS, so its ERROR can't stop the service.
         // It keeps Android Auto running, and the cable session attaches to it (openAndroidAuto).
         if (ConnectionStateHolder.snapshot.link == CarLink.WIRELESS) {
@@ -233,7 +237,7 @@ class UsbLinkForegroundService : Service() {
         adbProbe?.stop()
         session?.stop()
         lateinit var s: CarSession
-        s = CarSession(this, accessory) { reason ->
+        s = CarSession(this, accessory, showSupportPage = supportPageDue(fresh)) { reason ->
             handler.post {
                 Log.i(TAG, "session ended: $reason")
                 // A replaced session's end must not stop the service under the new one.
@@ -354,16 +358,16 @@ class UsbLinkForegroundService : Service() {
             it.copy(link = CarLink.WIRELESS, wireless = WirelessPhase.SEARCHING, suggestion = null,
                 phase = ConnectionPhase.DISCONNECTED, target = target)
         }
-        startWirelessSession()
+        startWirelessSession(fresh = true)
         wirelessLink = WirelessLink(this, wirelessLog, wirelessListener).also { it.scan() }
         armWirelessTimeout(SEARCH_TIMEOUT_MS) { endWireless(WirelessPhase.NOT_FOUND) }
     }
 
-    private fun startWirelessSession() {
+    private fun startWirelessSession(fresh: Boolean = false) {
         session?.stop()
         session = null
         lateinit var s: CarSession
-        s = CarSession(this, null, keepAndroidAuto = true) { reason -> handler.post { if (session === s) onWirelessSessionEnded(reason) } }
+        s = CarSession(this, null, keepAndroidAuto = true, showSupportPage = supportPageDue(fresh)) { reason -> handler.post { if (session === s) onWirelessSessionEnded(reason) } }
         session = s
         s.startWireless()
     }
@@ -519,6 +523,11 @@ class UsbLinkForegroundService : Service() {
             .build()
         runCatching { getSystemService(NotificationManager::class.java).notify(OPEN_TO_RECONNECT_ID, n) }
     }
+
+    /** Reconnects pass fresh=false, so a drive that's already going never gets the page. */
+    private fun supportPageDue(fresh: Boolean): Boolean = fresh && dev.caraalink.aa.AaSessionProbe.active == null &&
+        dev.caraalink.support.SupportAsk.isDue(AppSettings.supportHelped(this), AppSettings.supported(this),
+            AppSettings.supportCarPageShownAt(this), System.currentTimeMillis(), dev.caraalink.support.SupportAsk.CAR_PAGE_INTERVAL_MS)
 
     /** Transport-level read/write failure, as opposed to a clean close or a real unplug. */
     private fun isTransportIoFailure(reason: String): Boolean =

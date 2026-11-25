@@ -59,6 +59,14 @@ class DeveloperToolsActivity : Activity() {
         root.addView(button("Connection diagnostics") {
             startActivity(Intent(this@DeveloperToolsActivity, ConnectionDiagnosticsActivity::class.java))
         })
+        root.addView(button("Reset support asks") {
+            dev.caraalink.settings.AppSettings.resetSupportAsks(this)
+            Toast.makeText(this, "Support asks reset", Toast.LENGTH_SHORT).show()
+        })
+        root.addView(button("Save car support pages") {
+            saveCarSupportPage(1024, 536, egypt = true) { saveCarSupportPage(768, 1024, egypt = true) {
+                saveCarSupportPage(1024, 536, egypt = false) { saveCarSupportPage(768, 1024, egypt = false) } } }
+        })
 
         setContentView(
             ScrollView(this).apply {
@@ -72,6 +80,41 @@ class DeveloperToolsActivity : Activity() {
         setTextColor(Color.parseColor("#9AA7B2"))
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         setPadding(0, dp(16), 0, dp(8))
+    }
+
+    /** Renders the car page the way the car gets it (a private virtual display) and saves it to Downloads as a PNG. */
+    private fun saveCarSupportPage(w: Int, h: Int, egypt: Boolean, then: () -> Unit = {}) {
+        val reader = android.media.ImageReader.newInstance(w, h, android.graphics.PixelFormat.RGBA_8888, 2)
+        val dpi = (minOf(w, h) / 720f * 213).toInt()
+        val virtual = getSystemService(android.hardware.display.DisplayManager::class.java)
+            .createVirtualDisplay("car-page-preview", w, h, dpi, reader.surface, 0)
+        val page = dev.caraalink.video.CarStatusPresentation(this, virtual.display, dev.caraalink.video.CarScreen.SUPPORT, onOpenAa = {}, egypt = egypt)
+        page.show()
+        window.decorView.postDelayed({
+            val name = reader.acquireLatestImage()?.use { image ->
+                val plane = image.planes[0]
+                val padded = android.graphics.Bitmap.createBitmap(plane.rowStride / plane.pixelStride, h, android.graphics.Bitmap.Config.ARGB_8888)
+                padded.copyPixelsFromBuffer(plane.buffer)
+                savePng(android.graphics.Bitmap.createBitmap(padded, 0, 0, w, h), "AABridge-car-support-page-${if (egypt) "egypt" else "abroad"}-${w}x$h.png")
+            }
+            page.dismiss()
+            virtual.release()
+            reader.close()
+            Toast.makeText(this, name?.let { "Saved $it to Downloads" } ?: "Car page capture failed", Toast.LENGTH_LONG).show()
+            then()
+        }, 1500)
+    }
+
+    private fun savePng(bitmap: android.graphics.Bitmap, name: String): String? {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, "image/png")
+        }
+        val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
+        return runCatching {
+            contentResolver.openOutputStream(uri)?.use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            name
+        }.getOrNull()
     }
 
     private fun button(label: String, onClick: () -> Unit) = MaterialButton(
