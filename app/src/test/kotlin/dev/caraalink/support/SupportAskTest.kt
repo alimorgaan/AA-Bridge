@@ -30,4 +30,11 @@ class SupportAskTest {
         assertTrue(SupportAsk.inEgypt(simCountry = null, networkCountry = null, timeZoneId = "Africa/Cairo"))
         assertFalse(SupportAsk.inEgypt(simCountry = null, networkCountry = "", timeZoneId = "Africa/Tunis"))
     }
+
+    @Test
+    fun theCarPageComesBackWeekly() {
+        val week = SupportAsk.CAR_PAGE_INTERVAL_MS
+        assertFalse(SupportAsk.isDue(helped = true, supported = false, lastShownAt = now - 7 * day + 1, now = now, interval = week))
+        assertTrue(SupportAsk.isDue(helped = true, supported = false, lastShownAt = now - 7 * day, now = now, interval = week))
+    }
 }

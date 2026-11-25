@@ -527,7 +527,7 @@ class UsbLinkForegroundService : Service() {
     /** Reconnects pass fresh=false, so a drive that's already going never gets the page. */
     private fun supportPageDue(fresh: Boolean): Boolean = fresh && dev.caraalink.aa.AaSessionProbe.active == null &&
         dev.caraalink.support.SupportAsk.isDue(AppSettings.supportHelped(this), AppSettings.supported(this),
-            AppSettings.supportCarPageShownAt(this), System.currentTimeMillis())
+            AppSettings.supportCarPageShownAt(this), System.currentTimeMillis(), dev.caraalink.support.SupportAsk.CAR_PAGE_INTERVAL_MS)
 
     /** Transport-level read/write failure, as opposed to a clean close or a real unplug. */
     private fun isTransportIoFailure(reason: String): Boolean =

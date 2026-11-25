@@ -8,6 +8,8 @@ object SupportAsk {
     const val INSTAPAY_URL = "https://ipn.eg/S/alimorgangranite/instapay/0efSwz"
     const val PAYPAL_URL = "https://paypal.me/alimorgaan"
     const val INTERVAL_MS = 30L * 24 * 60 * 60 * 1000
+    // Weekly on the car: drivers who never open the app only get asked there.
+    const val CAR_PAGE_INTERVAL_MS = 7L * 24 * 60 * 60 * 1000
 
     // InstaPay purple sampled from its QR export; PayPal's gold button.
     val INSTAPAY_COLOR: Int = 0xFF552B78.toInt()
@@ -26,6 +28,6 @@ object SupportAsk {
     }
 
     /** A clock moved backwards counts as due, so a wrong date can't silence the ask for months. */
-    fun isDue(helped: Boolean, supported: Boolean, lastShownAt: Long, now: Long): Boolean =
-        helped && !supported && (lastShownAt == 0L || now < lastShownAt || now - lastShownAt >= INTERVAL_MS)
+    fun isDue(helped: Boolean, supported: Boolean, lastShownAt: Long, now: Long, interval: Long = INTERVAL_MS): Boolean =
+        helped && !supported && (lastShownAt == 0L || now < lastShownAt || now - lastShownAt >= interval)
 }

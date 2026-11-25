@@ -44,9 +44,9 @@ These count as failure even if everything works:
 - a Settings row
 - a permanent, eye-catching home banner
 - a phone pop-up once a month
-- a car-screen page once a month before Android Auto, with no auto-continue
+- a car-screen page before Android Auto, with no auto-continue: monthly at first, then weekly (Ali's call), because drivers who never open the app are only asked there
 
-The research (`reports/Egyptian donation copywriting.md`, local only) recommends a pop-up every 3 to 4 months and the car page 2 to 3 times a year. Ali chose monthly for both, for people who haven't supported. Supporters are never asked again.
+The research (`reports/Egyptian donation copywriting.md`, local only) recommends a pop-up every 3 to 4 months and the car page 2 to 3 times a year. Ali chose monthly for the pop-up and weekly for the car page, for people who haven't supported. Supporters are never asked again.
 
 ## The design
 
@@ -62,7 +62,7 @@ flowchart TD
     H --> B[Home banner shows]
     H --> P{App opened by the user,<br/>30+ days since last pop-up?}
     P -- yes --> PU[Phone pop-up]
-    H --> C{New car session starting,<br/>30+ days since last car page?}
+    H --> C{New car session starting,<br/>7+ days since last car page?}
     C -- yes --> CP[Car page before Android Auto]
     C -- no --> AA[Android Auto opens as today]
     CP -- driver taps افتح Android Auto --> AA
@@ -118,7 +118,7 @@ Any open the user starts counts, including from Recents or a notification, and i
   - «دعمت قبل كده» sets supported and shows «شكرًا إنك دعمت AA Bridge.»
   - The pop-up stays open after the InstaPay or PayPal button, so coming back after paying lands on «دعمت قبل كده».
 
-**Car page:** a new car status screen, `CarScreen.SUPPORT`. At the point where a session opens Android Auto by itself (once per session, `CarSession`, the `autoLaunchedAa` block), show this page instead when all of these are true: helped, not supported, and at least 30 days since `carPageShownAt` (or never shown). Then set `carPageShownAt`. Tapping «افتح Android Auto» opens Android Auto. The page never opens Android Auto by itself, so `mayAutoOpenAa` must treat SUPPORT like CLOSED. It shows on cable and wireless, in every country.
+**Car page:** a new car status screen, `CarScreen.SUPPORT`. At the point where a session opens Android Auto by itself (once per session, `CarSession`, the `autoLaunchedAa` block), show this page instead when all of these are true: helped, not supported, and at least 7 days since `carPageShownAt` (or never shown). Then set `carPageShownAt`. Tapping «افتح Android Auto» opens Android Auto. The page never opens Android Auto by itself, so `mayAutoOpenAa` must treat SUPPORT like CLOSED. It shows on cable and wireless, in every country.
 
 It only shows on a fresh connection: the first `CarSession` after the cable is plugged in or the user starts a wireless connect. Reconnects also build a new `CarSession` and pass through the same point, so the service has to tell `CarSession` whether it is fresh. Those reconnects are:
 
