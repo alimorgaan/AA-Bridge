@@ -25,6 +25,12 @@ class SocketTransport(
     private val logger: DiagnosticLogger,
     private val handlerFor: (service: String) -> AdbTransport.StreamHandler?,
     private val onClosed: (reason: String) -> Unit,
+    /**
+     * Some cars connect through USB debugging (ADB). Their connections come from this phone itself (127.0.0.1),
+     * not from Wi-Fi Direct, so in this mode we only accept connections from 127.0.0.1. These cars open many
+     * short connections, so one closing does not end the session.
+     */
+    private val adbMode: Boolean = false,
 ) : CarTransport {
 
     private val running = AtomicBoolean(false)
@@ -35,7 +41,7 @@ class SocketTransport(
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
-        for (port in PORTS) {
+        for (port in if (adbMode) ADB_PORTS else PORTS) {
             val server = try {
                 ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(port)) }
             } catch (e: IOException) {
@@ -62,7 +68,8 @@ class SocketTransport(
         while (running.get()) {
             val socket = try { server.accept() } catch (e: IOException) { break }
             val iface = runCatching { java.net.NetworkInterface.getByInetAddress(socket.localAddress)?.name }.getOrNull()
-            if (!acceptsInterface(iface)) {
+            val allowed = if (adbMode) socket.inetAddress?.isLoopbackAddress == true else acceptsInterface(iface)
+            if (!allowed) {
                 logger.log("refused tcp:$port from ${socket.remoteSocketAddress} on $iface")
                 runCatching { socket.close() }
                 continue
@@ -104,7 +111,7 @@ class SocketTransport(
         stream.close()
         streams -= stream
         synchronized(dispatch) { handler.onClose(stream) }
-        if (port == PXC_PORT) stop(reason)
+        if (!adbMode && port == PXC_PORT) stop(reason)
     }
 
     inner class SocketStream(override val localId: Int, val socket: Socket) : MirrorStream {
@@ -149,6 +156,9 @@ class SocketTransport(
 
         const val PXC_PORT = 10922
         val PORTS = listOf(PXC_PORT, 10921, 10920)
+
+        /** The ports for cars that connect through USB debugging (ADB). */
+        val ADB_PORTS = listOf(LegacyControlSession.PORT, PXC_PORT, 10921, 10920)
 
         @Volatile
         var listening = false

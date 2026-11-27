@@ -116,6 +116,10 @@ object AppSettings {
         prefs(context).getBoolean("auto_reconnect_usb", true)
 
     /** Debug-only. USB role is CONFIRMED (phone = accessory) — see claude/roadmap.md. */
+    /** Listen for cars that connect through USB debugging (ADB) while the app is open. */
+    fun adbHostMode(context: Context): Boolean =
+        prefs(context).getBoolean("adb_host_mode", true)
+
     fun usbRoleOverride(context: Context): UsbRoleOverride =
         when (prefs(context).getString("usb_role_override", "auto")) {
             "accessory" -> UsbRoleOverride.FORCE_ACCESSORY

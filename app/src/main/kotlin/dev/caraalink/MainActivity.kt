@@ -208,9 +208,26 @@ class MainActivity : ComponentActivity() {
         val canScan = checkSelfPermission(dev.caraalink.ui.NEARBY_PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (canScan && dev.caraalink.ui.shouldAutoConnect(dev.caraalink.connection.ConnectionStateHolder.snapshot, AppSettings.wirelessCar(this) != null)) {
             dev.caraalink.ui.startWireless(this)
+        } else {
+            maybeStartAdbMode()
         }
     }
 
+    /**
+     * Starts listening for a car that connects through USB debugging (ADB). These cars don't trigger a USB attach,
+     * so nothing else would start it. Does nothing if USB debugging or the setting is off, the app was opened by
+     * a USB attach, or something is already connected.
+     */
+    private fun maybeStartAdbMode() {
+        if (intent?.action == UsbManager.ACTION_USB_ACCESSORY_ATTACHED) return
+        if (!AppSettings.adbHostMode(this)) return
+        val adbOn = android.provider.Settings.Global.getInt(contentResolver, android.provider.Settings.Global.ADB_ENABLED, 0) == 1
+        val snapshot = dev.caraalink.connection.ConnectionStateHolder.snapshot
+        if (!adbOn || snapshot.link != dev.caraalink.connection.CarLink.NONE) return
+        Log.i(TAG, "maybeStartAdbMode: USB debugging is on, listening for a car")
+        startForegroundService(
+            Intent(this, UsbLinkForegroundService::class.java).setAction(UsbLinkForegroundService.ACTION_START_ADB_SESSION),
+        )
     /** The car's USB attach opens the app right as the driver sets off; no pop-up then. */
     private fun launchedByCar(intent: Intent?): Boolean =
         intent?.action == UsbManager.ACTION_USB_ACCESSORY_ATTACHED &&
