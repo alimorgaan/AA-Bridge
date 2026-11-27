@@ -47,6 +47,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import dev.caraalink.R
 import dev.caraalink.settings.SettingsActivity
 import dev.caraalink.update.UpdateChecker
@@ -67,7 +73,7 @@ fun SubScreen(title: String, onBack: () -> Unit, content: @Composable ColumnScop
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit, onSupport: () -> Unit) {
     val context = LocalContext.current
     SubScreen(stringResource(R.string.settings), onBack) {
         WirelessCarRow()
@@ -75,8 +81,10 @@ fun SettingsScreen(onBack: () -> Unit, onHelp: () -> Unit, onAbout: () -> Unit) 
             SettingsRow(rememberVectorPainter(Icons.Rounded.Refresh), stringResource(R.string.settings_updates)) {
                 UpdateChecker.checkNow(context, manual = true)
             }
-            SettingsRow(painterResource(R.drawable.ic_help), stringResource(R.string.help), onHelp)
-            SettingsRow(rememberVectorPainter(Icons.Rounded.Info), stringResource(R.string.settings_about), onAbout)
+            SettingsRow(painterResource(R.drawable.ic_help), stringResource(R.string.help), onClick = onHelp)
+            SettingsRow(painterResource(R.drawable.ic_coffee), stringResource(R.string.support_action),
+                supporting = stringResource(R.string.support_if_helped), onClick = onSupport)
+            SettingsRow(rememberVectorPainter(Icons.Rounded.Info), stringResource(R.string.settings_about), onClick = onAbout)
             SettingsRow(painterResource(R.drawable.ic_tune), stringResource(R.string.settings_advanced)) {
                 context.startActivity(Intent(context, SettingsActivity::class.java))
             }
@@ -118,9 +126,13 @@ private fun DashGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SettingsRow(icon: Painter, label: String, onClick: () -> Unit) {
+private fun SettingsRow(icon: Painter, label: String, supporting: String? = null, onClick: () -> Unit) {
+    // Each label reads in its own script's direction (the support row is Arabic on every phone) but stays on the list's side.
+    val side = if (LocalLayoutDirection.current == LayoutDirection.Ltr) TextAlign.Left else TextAlign.Right
+    val own = TextStyle(textDirection = TextDirection.Content, textAlign = side)
     ListItem(
-        headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
+        headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge.merge(own)) },
+        supportingContent = supporting?.let { { Text(it, color = Dash.Muted, style = LocalTextStyle.current.merge(own)) } },
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onClick),

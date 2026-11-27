@@ -51,6 +51,14 @@ class AppStateTest {
     }
 
     @Test
+    fun onlyARepeatedPlugInEventLeavesTheRunningCableSessionAlone() {
+        val cable = ConnectionSnapshot(link = CarLink.CABLE)
+        assertTrue(isRepeatedAttach(redelivered = true, cable))
+        assertFalse(isRepeatedAttach(redelivered = false, cable))
+        assertFalse(isRepeatedAttach(redelivered = true, ConnectionSnapshot()))
+    }
+
+    @Test
     fun autoConnectNeverBesideACableSession() {
         val cableAfterRetry = ConnectionSnapshot(phase = dev.caraalink.connection.ConnectionPhase.STREAMING)
         assertFalse(shouldAutoConnect(cableAfterRetry, hasRememberedCar = true))

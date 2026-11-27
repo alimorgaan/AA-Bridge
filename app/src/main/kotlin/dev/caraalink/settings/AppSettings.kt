@@ -28,6 +28,20 @@ object AppSettings {
     fun carConnectedOnce(context: Context): Boolean = prefs(context).getBoolean("car_connected_once", false)
     fun setCarConnectedOnce(context: Context) = prefs(context).edit().putBoolean("car_connected_once", true).apply()
 
+    fun supportHelped(context: Context): Boolean = prefs(context).getBoolean("support_helped", false)
+    fun setSupportHelped(context: Context) = prefs(context).edit().putBoolean("support_helped", true).apply()
+    fun supported(context: Context): Boolean = prefs(context).getBoolean("support_supported", false)
+    fun setSupported(context: Context) = prefs(context).edit().putBoolean("support_supported", true).apply()
+    fun supportPopupShownAt(context: Context): Long = prefs(context).getLong("support_popup_shown_at", 0L)
+    fun setSupportPopupShownAt(context: Context, at: Long) = prefs(context).edit().putLong("support_popup_shown_at", at).apply()
+    fun supportCarPageShownAt(context: Context): Long = prefs(context).getLong("support_car_page_shown_at", 0L)
+    fun setSupportCarPageShownAt(context: Context, at: Long) = prefs(context).edit().putLong("support_car_page_shown_at", at).apply()
+
+    /** Developer tools: as if Android Auto just worked and no ask was ever shown. */
+    fun resetSupportAsks(context: Context) = prefs(context).edit()
+        .putBoolean("support_helped", true).putBoolean("support_supported", false)
+        .putLong("support_popup_shown_at", 0L).putLong("support_car_page_shown_at", 0L).apply()
+
     fun wirelessCar(context: Context): RememberedCar? {
         val p = prefs(context)
         val address = p.getString("wireless_car_address", null) ?: return null
